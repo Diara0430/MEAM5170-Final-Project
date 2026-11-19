@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="910" height="380">
+<rect width="910" height="380" fill="white"/>
+<g font-family="Arial, sans-serif" fill="#253745"><text x="28" y="38" font-size="23">Palm offset and catch success</text><text x="28" y="65" font-size="15">40-degree box, fast arrival. Offsets follow the local palm x-axis.</text>
+<text x="28" y="108" font-size="18">Previously dropped</text>
+<text x="28" y="153">0 mm</text>
+<rect x="87" y="140" width="115" height="15" fill="#e4ebef"/>
+<rect x="87" y="140" width="80.50" height="15" fill="#117664"/>
+<text x="213" y="153">7/10</text>
+<text x="28" y="192">5 mm</text>
+<rect x="87" y="179" width="115" height="15" fill="#e4ebef"/>
+<rect x="87" y="179" width="92.00" height="15" fill="#117664"/>
+<text x="213" y="192">8/10</text>
+<text x="28" y="231">10 mm</text>
+<rect x="87" y="218" width="115" height="15" fill="#e4ebef"/>
+<rect x="87" y="218" width="0.00" height="15" fill="#516d82"/>
+<text x="213" y="231">0/10</text>
+<text x="28" y="270">15 mm</text>
+<rect x="87" y="257" width="115" height="15" fill="#e4ebef"/>
+<rect x="87" y="257" width="57.50" height="15" fill="#117664"/>
+<text x="213" y="270">5/10</text>
+<text x="28" y="309">20 mm</text>
+<rect x="87" y="296" width="115" height="15" fill="#e4ebef"/>
+<rect x="87" y="296" width="11.50" height="15" fill="#117664"/>
+<text x="213" y="309">1/10</text>
+<text x="323" y="108" font-size="18">All selection gusts</text>
+<text x="323" y="153">0 mm</text>
+<rect x="382" y="140" width="115" height="15" fill="#e4ebef"/>
+<rect x="382" y="140" width="81.46" height="15" fill="#117664"/>
+<text x="508" y="153">34/48</text>
+<text x="323" y="192">5 mm</text>
+<rect x="382" y="179" width="115" height="15" fill="#e4ebef"/>
+<rect x="382" y="179" width="74.27" height="15" fill="#117664"/>
+<text x="508" y="192">31/48</text>
+<text x="323" y="231">10 mm</text>
+<rect x="382" y="218" width="115" height="15" fill="#e4ebef"/>
+<rect x="382" y="218" width="69.48" height="15" fill="#516d82"/>
+<text x="508" y="231">29/48</text>
+<text x="323" y="270">15 mm</text>
+<rect x="382" y="257" width="115" height="15" fill="#e4ebef"/>
+<rect x="382" y="257" width="14.38" height="15" fill="#117664"/>
+<text x="508" y="270">6/48</text>
+<text x="323" y="309">20 mm</text>
+<rect x="382" y="296" width="115" height="15" fill="#e4ebef"/>
+<rect x="382" y="296" width="21.56" height="15" fill="#117664"/>
+<text x="508" y="309">9/48</text>
+<text x="618" y="108" font-size="18">Fresh validation gusts</text>
+<text x="618" y="153">0 mm</text>
+<rect x="677" y="140" width="115" height="15" fill="#e4ebef"/>
+<rect x="677" y="140" width="88.65" height="15" fill="#117664"/>
+<text x="803" y="153">37/48</text>
+<text x="618" y="192">10 mm</text>
+<rect x="677" y="179" width="115" height="15" fill="#e4ebef"/>
+<rect x="677" y="179" width="74.27" height="15" fill="#516d82"/>
+<text x="803" y="192">31/48</text>
+<text x="28" y="355" font-size="14">Counts show catches / trials. The first panel is a subset of the second.</text>
+</g></svg>

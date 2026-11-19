@@ -1,0 +1,7 @@
+﻿split,mode,n,planned,caught,gains_vs_fixed,losses_vs_fixed,within_2mm,target_loaded,target_loaded_pretilt,contact_triggered_hold,median_pretilt_gap_mm,median_peak_drift_mm
+five_cases,fixed,5,5,0,0,0,0,0,0,0,65.28312838478658,32.926
+five_cases,ik,5,5,0,0,0,0,0,0,0,66.0089099639995,32.623
+five_cases,feedback,5,5,0,0,0,0,0,0,0,49.637475138596876,32.826
+fresh_gusts,fixed,48,47,37,0,0,0,0,0,0,65.4855790476733,21.000999999999998
+fresh_gusts,ik,48,47,37,0,0,0,0,0,0,65.96230197553538,20.814999999999998
+fresh_gusts,feedback,48,47,30,0,7,0,0,0,0,45.23667667329033,22.689999999999998

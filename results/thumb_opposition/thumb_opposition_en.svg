@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="405">
+<rect width="900" height="405" fill="white"/><g font-family="Arial, sans-serif" fill="#243643">
+<text x="28" y="36" font-size="22">Late thumb adjustment at the 0 mm palm position</text>
+<text x="28" y="62" font-size="14">Each count is out of 48 identical gusts within a panel. Angles are offsets from the original joint target.</text>
+<text x="28" y="105" font-size="18">Selection gusts</text>
+<text x="28" y="145" font-size="14">-30 deg</text>
+<rect x="97" y="133" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="133" width="173.44" height="10" fill="#15776b"/>
+<text x="330" y="143" font-size="12">37/48</text>
+<rect x="97" y="148" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="148" width="28.12" height="10" fill="#b6652c"/>
+<text x="330" y="158" font-size="12">6/48</text>
+<text x="28" y="188" font-size="14">-15 deg</text>
+<rect x="97" y="176" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="176" width="173.44" height="10" fill="#15776b"/>
+<text x="330" y="186" font-size="12">37/48</text>
+<rect x="97" y="191" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="191" width="28.12" height="10" fill="#b6652c"/>
+<text x="330" y="201" font-size="12">6/48</text>
+<text x="28" y="231" font-size="14">+0 deg</text>
+<rect x="97" y="219" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="219" width="173.44" height="10" fill="#15776b"/>
+<text x="330" y="229" font-size="12">37/48</text>
+<rect x="97" y="234" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="234" width="28.12" height="10" fill="#b6652c"/>
+<text x="330" y="244" font-size="12">6/48</text>
+<text x="28" y="274" font-size="14">+15 deg</text>
+<rect x="97" y="262" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="262" width="173.44" height="10" fill="#15776b"/>
+<text x="330" y="272" font-size="12">37/48</text>
+<rect x="97" y="277" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="277" width="28.12" height="10" fill="#b6652c"/>
+<text x="330" y="287" font-size="12">6/48</text>
+<text x="28" y="317" font-size="14">+30 deg</text>
+<rect x="97" y="305" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="305" width="173.44" height="10" fill="#15776b"/>
+<text x="330" y="315" font-size="12">37/48</text>
+<rect x="97" y="320" width="225" height="10" fill="#e9edef"/>
+<rect x="97" y="320" width="28.12" height="10" fill="#b6652c"/>
+<text x="330" y="330" font-size="12">6/48</text>
+<text x="476" y="105" font-size="18">Fresh validation gusts</text>
+<text x="476" y="145" font-size="14">-15 deg</text>
+<rect x="545" y="133" width="225" height="10" fill="#e9edef"/>
+<rect x="545" y="133" width="159.38" height="10" fill="#15776b"/>
+<text x="778" y="143" font-size="12">34/48</text>
+<rect x="545" y="148" width="225" height="10" fill="#e9edef"/>
+<rect x="545" y="148" width="28.12" height="10" fill="#b6652c"/>
+<text x="778" y="158" font-size="12">6/48</text>
+<text x="476" y="188" font-size="14">+0 deg</text>
+<rect x="545" y="176" width="225" height="10" fill="#e9edef"/>
+<rect x="545" y="176" width="159.38" height="10" fill="#15776b"/>
+<text x="778" y="186" font-size="12">34/48</text>
+<rect x="545" y="191" width="225" height="10" fill="#e9edef"/>
+<rect x="545" y="191" width="28.12" height="10" fill="#b6652c"/>
+<text x="778" y="201" font-size="12">6/48</text>
+<text x="28" y="377" font-size="14">Green: caught.   Orange: median thumb normal load of at least 0.02 N in the final 100 ms before tilt.</text>
+</g></svg>

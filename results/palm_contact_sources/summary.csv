@@ -1,0 +1,26 @@
+﻿outcome,part,pairs,loaded_0mm,loaded_10mm,median_first_load_0mm_ms,median_first_load_10mm_ms,mean_contribution_50ms_mN_m_s
+all,Palm,48,48,48,0.0,0.0,5.421262495458954
+all,Finger 1,48,0,0,,,0.0
+all,Finger 2,48,48,48,4.0,8.0,-5.028824544281686
+all,Finger 3,48,48,48,4.0,8.0,-0.4300950918312599
+all,Thumb,48,0,0,,,0.0
+recovered,Palm,15,15,15,0.0,0.0,1.4145772574188291
+recovered,Finger 1,15,0,0,,,0.0
+recovered,Finger 2,15,15,15,4.0,14.0,1.7157982857185687
+recovered,Finger 3,15,15,15,4.0,14.0,-3.2986078583892553
+recovered,Thumb,15,0,0,,,0.0
+lost,Palm,9,9,9,0.0,0.0,9.770902286004183
+lost,Finger 1,9,0,0,,,0.0
+lost,Finger 2,9,9,9,4.0,8.0,-15.221422868064744
+lost,Finger 3,9,9,9,4.0,8.0,5.417379669326831
+lost,Thumb,9,0,0,,,0.0
+both caught,Palm,22,22,22,0.0,0.0,5.6717345297177015
+both caught,Finger 1,22,0,0,,,0.0
+both caught,Finger 2,22,22,22,4.0,8.0,-3.512632125806036
+both caught,Finger 3,22,22,22,4.0,8.0,-2.1343168598865083
+both caught,Thumb,22,0,0,,,0.0
+both failed,Palm,2,2,2,0.0,0.0,13.142830346460153
+both failed,Finger 1,2,0,0,,,0.0
+both failed,Finger 2,2,2,2,0.0,7.0,-26.424919915491966
+both failed,Finger 3,2,2,2,0.0,7.0,13.516553680750025
+both failed,Thumb,2,0,0,,,0.0

@@ -1,0 +1,8 @@
+﻿split,thumb_deg,caught,total,gains_vs_zero,losses_vs_zero,thumb_bearing_trials,median_thumb_N,median_actual_angle_deg,median_torque_limited_pct,median_peak_drift_mm
+selection,-30,37,48,0,0,6,0.0,28.936210867519062,100.0,22.652
+selection,-15,37,48,0,0,6,0.0,28.936210867519062,100.0,22.652
+selection,0,37,48,0,0,6,0.0,28.936210867519062,100.0,22.652
+selection,15,37,48,0,0,6,0.0,28.936210867519062,100.0,22.652
+selection,30,37,48,0,0,6,0.0,28.936210867519062,100.0,22.652
+validation,-15,34,48,0,0,6,0.0,28.936146695791763,100.0,21.734
+validation,0,34,48,0,0,6,0.0,28.936146695791763,100.0,21.734

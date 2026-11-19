@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="450" viewBox="0 0 820 450">
+<rect width="820" height="450" fill="white"/>
+<g font-family="Arial, sans-serif" fill="#243745">
+<text x="30" y="40" font-size="23">Catching a tilted box under vertical gusts</text>
+<text x="30" y="67" font-size="15">Each bar shows the fraction of paired trials caught.</text>
+<text x="30" y="116" font-size="19">Cap selection</text>
+<text x="30" y="160" font-size="15">Fixed</text>
+<rect x="115" y="146" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="146" width="109.38" height="17" fill="#587186"/>
+<text x="305" y="160" font-size="15">15/24</text>
+<text x="30" y="203" font-size="15">Uncapped</text>
+<rect x="115" y="189" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="189" width="94.79" height="17" fill="#587186"/>
+<text x="305" y="203" font-size="15">13/24</text>
+<text x="30" y="246" font-size="15">4 ms</text>
+<rect x="115" y="232" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="232" width="87.50" height="17" fill="#587186"/>
+<text x="305" y="246" font-size="15">12/24</text>
+<text x="30" y="289" font-size="15">8 ms</text>
+<rect x="115" y="275" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="275" width="87.50" height="17" fill="#587186"/>
+<text x="305" y="289" font-size="15">12/24</text>
+<text x="30" y="332" font-size="15">16 ms</text>
+<rect x="115" y="318" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="318" width="80.21" height="17" fill="#587186"/>
+<text x="305" y="332" font-size="15">11/24</text>
+<text x="30" y="375" font-size="15">32 ms</text>
+<rect x="115" y="361" width="175" height="17" fill="#e5eaec"/>
+<rect x="115" y="361" width="87.50" height="17" fill="#007769"/>
+<text x="305" y="375" font-size="15">12/24</text>
+<text x="445" y="116" font-size="19">Fresh gusts</text>
+<text x="445" y="160" font-size="15">Fixed</text>
+<rect x="530" y="146" width="175" height="17" fill="#e5eaec"/>
+<rect x="530" y="146" width="105.73" height="17" fill="#587186"/>
+<text x="720" y="160" font-size="15">29/48</text>
+<text x="445" y="203" font-size="15">Uncapped</text>
+<rect x="530" y="189" width="175" height="17" fill="#e5eaec"/>
+<rect x="530" y="189" width="105.73" height="17" fill="#587186"/>
+<text x="720" y="203" font-size="15">29/48</text>
+<text x="445" y="246" font-size="15">32 ms</text>
+<rect x="530" y="232" width="175" height="17" fill="#e5eaec"/>
+<rect x="530" y="232" width="98.44" height="17" fill="#007769"/>
+<text x="720" y="246" font-size="15">27/48</text>
+<text x="30" y="425" font-size="14">Teal marks the 32 ms cap selected before validation.</text>
+</g></svg>

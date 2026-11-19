@@ -1,0 +1,7 @@
+﻿split,mode,n,planned,caught,gains,losses,static_within_2mm,within_2mm_before_tilt,ever_loaded_target,pretilt_loaded_target,pretilt_loaded_thumb,median_pretilt_mm,median_peak_drift_mm
+five_cases,fixed,5,5,0,0,0,5,0,0,0,0,65.28312838478658,32.926
+five_cases,anchor,5,5,0,0,0,5,0,0,0,0,72.41575175467455,33.499
+five_cases,ik,5,5,0,0,0,5,0,0,0,0,66.0089099639995,32.623
+fresh_gusts,fixed,48,48,40,0,0,48,0,0,0,2,67.20836211228037,22.441000000000003
+fresh_gusts,anchor,48,48,41,2,1,48,0,0,0,2,72.74043834297161,22.253
+fresh_gusts,ik,48,48,40,0,0,48,0,0,0,2,66.77617188869013,22.0815
