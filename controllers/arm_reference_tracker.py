@@ -30,6 +30,8 @@ class ArmReferenceTracker:
             self.inverse.qpos[self.qadr]=q
             self.inverse.qvel[self.dofs]=v
             self.inverse.qacc[self.dofs]=a
+            # 前馈模型隔离飞行球体，实际手-物碰撞由真实仿真及反馈承受。
+            self.inverse.joint("flight").qpos[:3]=[3.,3.,3.]
             mujoco.mj_inverse(self.model,self.inverse)
             torque=self.inverse.qfrc_inverse[self.dofs]
             target=q+(torque+self.kd*v)/self.kp

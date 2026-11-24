@@ -1,0 +1,13 @@
+﻿kind,mode,n,accepted,contacted,held,qualified,median_planning_ms
+near,static_predict,12,12,12,7,2,0.0
+near,active_predict,12,4,4,1,0,238.78575002891012
+near,active_contact,12,4,4,3,1,238.78575002891012
+near,active_hybrid,12,4,4,1,0,238.78575002891012
+far,static_predict,4,4,0,0,0,0.0
+far,active_predict,4,0,0,0,0,0.9973499982152134
+far,active_contact,4,0,0,0,0,0.9973499982152134
+far,active_hybrid,4,0,0,0,0,0.9973499982152134
+urgent,static_predict,4,4,4,2,2,0.0
+urgent,active_predict,4,0,0,0,0,52.65354999573901
+urgent,active_contact,4,0,0,0,0,52.65354999573901
+urgent,active_hybrid,4,0,0,0,0,52.65354999573901

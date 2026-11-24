@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="340">
+<rect width="100%" height="100%" fill="white"/>
+<g font-family="Arial" fill="#18364a">
+<text x="25" y="35" font-size="22">Active ball catching with planning latency</text>
+<text x="25" y="62" font-size="13">Nearby trajectories, same 12 releases. Active planning reserves 200 ms before arm motion.</text>
+<text x="25" y="109" font-size="14" font-weight="bold">Strategy</text>
+<text x="300" y="109" font-size="14" font-weight="bold">Executed</text>
+<text x="440" y="109" font-size="14" font-weight="bold">Contacted</text>
+<text x="580" y="109" font-size="14" font-weight="bold">Held for 2 s</text>
+<text x="760" y="109" font-size="14" font-weight="bold">Held + motion limits</text>
+<text x="25" y="148" font-size="14">static_predict</text>
+<text x="300" y="148" font-size="14">12/12</text>
+<text x="440" y="148" font-size="14">12/12</text>
+<text x="580" y="148" font-size="14">7/12</text>
+<text x="760" y="148" font-size="14">2/12</text>
+<text x="25" y="182" font-size="14">active_predict</text>
+<text x="300" y="182" font-size="14">4/12</text>
+<text x="440" y="182" font-size="14">4/12</text>
+<text x="580" y="182" font-size="14">1/12</text>
+<text x="760" y="182" font-size="14">0/12</text>
+<text x="25" y="216" font-size="14">active_contact</text>
+<text x="300" y="216" font-size="14">4/12</text>
+<text x="440" y="216" font-size="14">4/12</text>
+<text x="580" y="216" font-size="14">3/12</text>
+<text x="760" y="216" font-size="14">1/12</text>
+<text x="25" y="250" font-size="14">active_hybrid</text>
+<text x="300" y="250" font-size="14">4/12</text>
+<text x="440" y="250" font-size="14">4/12</text>
+<text x="580" y="250" font-size="14">1/12</text>
+<text x="760" y="250" font-size="14">0/12</text>
+<text x="25" y="303" font-size="13">Motion limits include collision acceleration. Rejected plans remain in the denominator.</text></g></svg>
