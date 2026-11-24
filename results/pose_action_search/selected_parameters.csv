@@ -1,0 +1,7 @@
+﻿shape,speed,angle_deg,action
+ball,slow,0.0,standard
+ball,medium,0.0,close_fast
+ball,fast,0.0,close_fast
+box,slow,45.0,standard
+box,medium,45.0,standard
+box,fast,45.0,standard

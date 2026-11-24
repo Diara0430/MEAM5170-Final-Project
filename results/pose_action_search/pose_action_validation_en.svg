@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620">
+<rect width="1000" height="620" fill="white"/>
+<g font-family="Arial" fill="#17354a">
+<text x="25" y="35" font-size="22">Capture pose and action: held-out validation</text>
+<text x="25" y="62" font-size="13">24 paired gust seeds per condition. Success requires a 2-second hold at the capture pose.</text>
+<text x="25" y="85" font-size="13">Blue: original. Gray: selected pose. Orange: selected pose and action.</text>
+<text x="25" y="137" font-size="15">Ball / slow</text>
+<text x="25" y="158" font-size="12">0 deg, standard</text>
+<rect x="220" y="122" width="640.0" height="14" fill="#28648d"/>
+<text x="880" y="134" font-size="13">24/24</text>
+<rect x="220" y="141" width="640.0" height="14" fill="#83979e"/>
+<text x="880" y="153" font-size="13">24/24</text>
+<rect x="220" y="160" width="640.0" height="14" fill="#bd542c"/>
+<text x="880" y="172" font-size="13">24/24</text>
+<text x="25" y="210" font-size="15">Ball / medium</text>
+<text x="25" y="231" font-size="12">0 deg, close_fast</text>
+<rect x="220" y="195" width="560.0" height="14" fill="#28648d"/>
+<text x="880" y="207" font-size="13">21/24</text>
+<rect x="220" y="214" width="560.0" height="14" fill="#83979e"/>
+<text x="880" y="226" font-size="13">21/24</text>
+<rect x="220" y="233" width="640.0" height="14" fill="#bd542c"/>
+<text x="880" y="245" font-size="13">24/24</text>
+<text x="25" y="283" font-size="15">Ball / fast</text>
+<text x="25" y="304" font-size="12">0 deg, close_fast</text>
+<rect x="220" y="268" width="506.6666666666667" height="14" fill="#28648d"/>
+<text x="880" y="280" font-size="13">19/24</text>
+<rect x="220" y="287" width="506.6666666666667" height="14" fill="#83979e"/>
+<text x="880" y="299" font-size="13">19/24</text>
+<rect x="220" y="306" width="586.6666666666666" height="14" fill="#bd542c"/>
+<text x="880" y="318" font-size="13">22/24</text>
+<text x="25" y="356" font-size="15">Box / slow</text>
+<text x="25" y="377" font-size="12">45 deg, standard</text>
+<rect x="220" y="341" width="480.0" height="14" fill="#28648d"/>
+<text x="880" y="353" font-size="13">18/24</text>
+<rect x="220" y="360" width="640.0" height="14" fill="#83979e"/>
+<text x="880" y="372" font-size="13">24/24</text>
+<rect x="220" y="379" width="640.0" height="14" fill="#bd542c"/>
+<text x="880" y="391" font-size="13">24/24</text>
+<text x="25" y="429" font-size="15">Box / medium</text>
+<text x="25" y="450" font-size="12">45 deg, standard</text>
+<rect x="220" y="414" width="506.6666666666667" height="14" fill="#28648d"/>
+<text x="880" y="426" font-size="13">19/24</text>
+<rect x="220" y="433" width="640.0" height="14" fill="#83979e"/>
+<text x="880" y="445" font-size="13">24/24</text>
+<rect x="220" y="452" width="640.0" height="14" fill="#bd542c"/>
+<text x="880" y="464" font-size="13">24/24</text>
+<text x="25" y="502" font-size="15">Box / fast</text>
+<text x="25" y="523" font-size="12">45 deg, standard</text>
+<rect x="220" y="487" width="453.3333333333333" height="14" fill="#28648d"/>
+<text x="880" y="499" font-size="13">17/24</text>
+<rect x="220" y="506" width="613.3333333333334" height="14" fill="#83979e"/>
+<text x="880" y="518" font-size="13">23/24</text>
+<rect x="220" y="525" width="613.3333333333334" height="14" fill="#bd542c"/>
+<text x="880" y="537" font-size="13">23/24</text>
+<text x="25" y="590" font-size="13">Candidates selected using earlier, disjoint seeds. Fixed launch direction, size and mass.</text></g></svg>

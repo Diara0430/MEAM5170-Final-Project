@@ -1,0 +1,5 @@
+﻿evaluation,mode,n,succeeded,gains,losses
+hold,fixed,24,24,0,0
+hold,feedback,24,24,0,0
+tilt,fixed,24,24,0,0
+tilt,feedback,24,24,0,0

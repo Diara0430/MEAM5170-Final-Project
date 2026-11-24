@@ -1,0 +1,7 @@
+﻿seed,mode,passed,failure_stage,close_s,first_contact_s,max_drift_mm
+435,fixed,0,drift_during_tilt,0.16,0.216,49.986
+435,slow,1,passed,0.16,0.216,13.268
+435,adaptive,1,passed,0.16,0.216,15.031
+454,fixed,1,passed,0.16,0.214,24.412
+454,slow,0,drift_during_tilt,0.16,0.214,29.958
+454,adaptive,0,drift_during_tilt,0.16,0.214,32.73

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="440">
+<rect width="940" height="440" fill="white"/>
+<g font-family="Arial" fill="#18364a">
+<text x="25" y="35" font-size="22">Velocity-based recoil and grip feedback</text>
+<text x="25" y="62" font-size="13">40-degree fast box. All four controllers use the same 2-second wrist tilt and 0.5-second hold.</text>
+<text x="30" y="103" font-size="18">Selection</text>
+<text x="30" y="145" font-size="14">fixed</text>
+<rect x="115" y="129" width="157.5" height="19" fill="#30718b"/>
+<text x="315" y="145" font-size="14">14/16</text>
+<text x="115" y="168" font-size="12">Median drift 13.19 mm | Gains 0, losses 0</text>
+<text x="30" y="209" font-size="14">buffer</text>
+<rect x="115" y="193" width="157.5" height="19" fill="#30718b"/>
+<text x="315" y="209" font-size="14">14/16</text>
+<text x="115" y="232" font-size="12">Median drift 12.73 mm | Gains 2, losses 2</text>
+<text x="30" y="273" font-size="14">grip</text>
+<rect x="115" y="257" width="157.5" height="19" fill="#30718b"/>
+<text x="315" y="273" font-size="14">14/16</text>
+<text x="115" y="296" font-size="12">Median drift 13.92 mm | Gains 0, losses 0</text>
+<text x="30" y="337" font-size="14">combined</text>
+<rect x="115" y="321" width="157.5" height="19" fill="#30718b"/>
+<text x="315" y="337" font-size="14">14/16</text>
+<text x="115" y="360" font-size="12">Median drift 13.56 mm | Gains 2, losses 2</text>
+<text x="490" y="103" font-size="18">Validation</text>
+<text x="490" y="145" font-size="14">fixed</text>
+<rect x="575" y="129" width="131.25" height="19" fill="#30718b"/>
+<text x="775" y="145" font-size="14">35/48</text>
+<text x="575" y="168" font-size="12">Median drift 12.45 mm | Gains 0, losses 0</text>
+<text x="490" y="209" font-size="14">buffer</text>
+<rect x="575" y="193" width="157.5" height="19" fill="#30718b"/>
+<text x="775" y="209" font-size="14">42/48</text>
+<text x="575" y="232" font-size="12">Median drift 11.57 mm | Gains 9, losses 2</text>
+<text x="490" y="273" font-size="14">grip</text>
+<rect x="575" y="257" width="131.25" height="19" fill="#30718b"/>
+<text x="775" y="273" font-size="14">35/48</text>
+<text x="575" y="296" font-size="12">Median drift 14.05 mm | Gains 1, losses 1</text>
+<text x="490" y="337" font-size="14">combined</text>
+<rect x="575" y="321" width="157.5" height="19" fill="#30718b"/>
+<text x="775" y="337" font-size="14">42/48</text>
+<text x="575" y="360" font-size="12">Median drift 12.66 mm | Gains 9, losses 2</text>
+<text x="30" y="425" font-size="13">Fixed = no recoil, fixed finger targets. Buffer = recoil only. Grip = finger feedback only.</text></g></svg>

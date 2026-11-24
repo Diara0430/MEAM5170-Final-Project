@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="410">
+<rect width="900" height="410" fill="white"/>
+<g font-family="Arial" fill="#213547">
+<text x="35" y="36" font-size="22">Wrist speed feedback under paired gusts</text>
+<text x="35" y="61" font-size="13">40-degree fast box, fixed fingers, 0 mm palm offset. All trials require final tilt and 0.5 s hold.</text>
+<text x="50" y="100" font-size="18">Selection</text>
+<text x="50" y="140" font-size="14">fixed</text>
+<rect x="130" y="125" width="150.0" height="20" fill="#28648d"/>
+<text x="340" y="140" font-size="14">18/24</text>
+<text x="130" y="165" font-size="12">Median tilt 1.00 s | Gains 0, losses 0</text>
+<text x="50" y="215" font-size="14">slow</text>
+<rect x="130" y="200" width="158.33333333333334" height="20" fill="#81999f"/>
+<text x="340" y="215" font-size="14">19/24</text>
+<text x="130" y="240" font-size="12">Median tilt 2.00 s | Gains 3, losses 2</text>
+<text x="50" y="290" font-size="14">adaptive</text>
+<rect x="130" y="275" width="141.66666666666666" height="20" fill="#bd542c"/>
+<text x="340" y="290" font-size="14">17/24</text>
+<text x="130" y="315" font-size="12">Median tilt 1.74 s | Gains 1, losses 2</text>
+<text x="490" y="100" font-size="18">Validation</text>
+<text x="490" y="140" font-size="14">fixed</text>
+<rect x="570" y="125" width="145.83333333333334" height="20" fill="#28648d"/>
+<text x="780" y="140" font-size="14">35/48</text>
+<text x="570" y="165" font-size="12">Median tilt 1.00 s | Gains 0, losses 0</text>
+<text x="490" y="215" font-size="14">slow</text>
+<rect x="570" y="200" width="170.83333333333334" height="20" fill="#81999f"/>
+<text x="780" y="215" font-size="14">41/48</text>
+<text x="570" y="240" font-size="12">Median tilt 2.00 s | Gains 10, losses 4</text>
+<text x="490" y="290" font-size="14">adaptive</text>
+<rect x="570" y="275" width="166.66666666666666" height="20" fill="#bd542c"/>
+<text x="780" y="290" font-size="14">40/48</text>
+<text x="570" y="315" font-size="12">Median tilt 1.81 s | Gains 9, losses 4</text>
+<text x="50" y="385" font-size="13">Bar length = success fraction. Gains and losses are relative to fixed speed within each split.</text></g></svg>

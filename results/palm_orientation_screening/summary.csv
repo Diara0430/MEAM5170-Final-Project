@@ -1,0 +1,7 @@
+﻿shape,speed,pretilt_deg,n,infeasible,contacted,succeeded
+ball,slow,0.0,24,0,24,24
+ball,slow,45.0,24,0,24,0
+ball,slow,90.0,24,0,0,0
+box,slow,0.0,24,0,24,17
+box,slow,45.0,24,0,24,24
+box,slow,90.0,24,0,21,0

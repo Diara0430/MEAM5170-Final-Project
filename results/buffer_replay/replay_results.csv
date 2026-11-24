@@ -1,0 +1,4 @@
+﻿seed,mode,passed,failure_stage,close_s,first_contact_s,max_drift_mm
+496,slow,0,dropped_during_tilt,0.16,0.22,652.41
+496,buffer,1,passed,0.16,0.22,14.922
+496,combined,1,passed,0.16,0.22,19.262

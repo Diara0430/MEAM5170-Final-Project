@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="450">
+<rect width="100%" height="100%" fill="white"/>
+<g font-family="Arial" fill="#18364a">
+<text x="25" y="35" font-size="22">Arm tracking error at interception deadline</text>
+<text x="25" y="61" font-size="13">Blue: PD + gravity. Orange: inverse dynamics + velocity feedforward. Ball held away from robot.</text>
+<text x="25" y="83" font-size="13">Dashed line: 5 mm position tolerance. Both controllers use the same reference for each scenario.</text>
+<path d="M70 370.0h880" stroke="#b5c3ca" stroke-dasharray="4 3"/><text x="62" y="374.0" text-anchor="end" font-size="12">0.0</text>
+<path d="M70 266.8495443066889h880" stroke="#b5c3ca" stroke-dasharray="4 3"/><text x="62" y="270.8495443066889" text-anchor="end" font-size="12">5.0</text>
+<path d="M70 120.0h880" stroke="#b5c3ca" stroke-dasharray="4 3"/><text x="62" y="124.0" text-anchor="end" font-size="12">12.1</text>
+<rect x="89.66666666666666" y="158.5160998107841" width="15" height="211.4839001892159" fill="#28648d"/>
+<rect x="107.66666666666666" y="366.88593910972486" width="15" height="3.1140608902751508" fill="#bd542c"/>
+<text x="106.66666666666666" y="390" font-size="12" text-anchor="middle">0</text>
+<rect x="163.0" y="275.0637847002672" width="15" height="94.9362152997328" fill="#28648d"/>
+<rect x="181.0" y="363.0818531067426" width="15" height="6.918146893257394" fill="#bd542c"/>
+<text x="180.0" y="390" font-size="12" text-anchor="middle">1</text>
+<rect x="236.33333333333334" y="270.99578214365397" width="15" height="99.00421785634603" fill="#28648d"/>
+<rect x="254.33333333333334" y="361.4183767925917" width="15" height="8.581623207408303" fill="#bd542c"/>
+<text x="253.33333333333334" y="390" font-size="12" text-anchor="middle">2</text>
+<rect x="309.6666666666667" y="286.0489849477837" width="15" height="83.95101505221629" fill="#28648d"/>
+<rect x="327.6666666666667" y="342.2842800407079" width="15" height="27.715719959292095" fill="#bd542c"/>
+<text x="326.6666666666667" y="390" font-size="12" text-anchor="middle">3</text>
+<rect x="383.0" y="166.03227850280786" width="15" height="203.96772149719214" fill="#28648d"/>
+<rect x="401.0" y="365.06256682155737" width="15" height="4.937433178442647" fill="#bd542c"/>
+<text x="400.0" y="390" font-size="12" text-anchor="middle">4</text>
+<rect x="456.3333333333333" y="339.3481047635198" width="15" height="30.651895236480197" fill="#28648d"/>
+<rect x="474.3333333333333" y="366.1533050734637" width="15" height="3.8466949265363204" fill="#bd542c"/>
+<text x="473.3333333333333" y="390" font-size="12" text-anchor="middle">5</text>
+<rect x="529.6666666666667" y="236.45783775338555" width="15" height="133.54216224661445" fill="#28648d"/>
+<rect x="547.6666666666667" y="363.65221819513846" width="15" height="6.347781804861546" fill="#bd542c"/>
+<text x="546.6666666666667" y="390" font-size="12" text-anchor="middle">6</text>
+<rect x="603.0" y="337.9973722510789" width="15" height="32.0026277489211" fill="#28648d"/>
+<rect x="621.0" y="365.12543762270167" width="15" height="4.87456237729834" fill="#bd542c"/>
+<text x="620.0" y="390" font-size="12" text-anchor="middle">7</text>
+<rect x="676.3333333333334" y="285.0906591491519" width="15" height="84.90934085084808" fill="#28648d"/>
+<rect x="694.3333333333334" y="363.53871595670165" width="15" height="6.461284043298346" fill="#bd542c"/>
+<text x="693.3333333333334" y="390" font-size="12" text-anchor="middle">8</text>
+<rect x="749.6666666666666" y="152.6086956521739" width="15" height="217.3913043478261" fill="#28648d"/>
+<rect x="767.6666666666666" y="363.088332565797" width="15" height="6.911667434203034" fill="#bd542c"/>
+<text x="766.6666666666666" y="390" font-size="12" text-anchor="middle">9</text>
+<rect x="823.0" y="254.94976765341778" width="15" height="115.05023234658222" fill="#28648d"/>
+<rect x="841.0" y="365.0868301564937" width="15" height="4.913169843506287" fill="#bd542c"/>
+<text x="840.0" y="390" font-size="12" text-anchor="middle">10</text>
+<rect x="896.3333333333334" y="281.0160623680496" width="15" height="88.98393763195045" fill="#28648d"/>
+<rect x="914.3333333333334" y="368.20911867568185" width="15" height="1.790881324318132" fill="#bd542c"/>
+<text x="913.3333333333334" y="390" font-size="12" text-anchor="middle">11</text>
+<text x="450" y="425" font-size="14">Scenario ID. Vertical axis: capture-center error (mm).</text></g></svg>

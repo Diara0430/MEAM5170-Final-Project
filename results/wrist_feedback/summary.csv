@@ -1,0 +1,7 @@
+﻿split,mode,n,caught,gains,losses,median_drift_mm,median_tilt_s,timeouts
+selection,fixed,24,18,0,0,20.725,1.0,0
+selection,slow,24,19,3,2,12.0575,2.0,0
+selection,adaptive,24,17,1,2,11.8585,1.735,0
+validation,fixed,48,35,0,0,22.174500000000002,1.0,0
+validation,slow,48,41,10,4,12.166,2.0,0
+validation,adaptive,48,40,9,4,11.9875,1.8140000000000003,0

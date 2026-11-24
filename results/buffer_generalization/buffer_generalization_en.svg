@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="590">
+<rect width="960" height="590" fill="white"/>
+<g font-family="Arial" fill="#18364a">
+<text x="25" y="35" font-size="22">Recoil transfer across shapes and arrival speeds</text>
+<text x="25" y="61" font-size="13">24 paired gust seeds per condition. Frozen parameters. Blue: fixed. Orange: recoil.</text>
+<text x="25" y="83" font-size="13">Hold and tilt are independent replays. Box pitch: 40 degrees. Ball pitch: 0 degrees.</text>
+<text x="190" y="118" font-size="16">Hold original pose for 2 s</text>
+<text x="25" y="168" font-size="14">Ball / slow</text>
+<rect x="190" y="156" width="225.0" height="16" fill="#28648d"/>
+<text x="428" y="169" font-size="13">24/24</text>
+<rect x="190" y="177" width="225.0" height="16" fill="#bd542c"/>
+<text x="428" y="190" font-size="13">24/24</text>
+<text x="25" y="232" font-size="14">Ball / medium</text>
+<rect x="190" y="220" width="225.0" height="16" fill="#28648d"/>
+<text x="428" y="233" font-size="13">24/24</text>
+<rect x="190" y="241" width="206.25" height="16" fill="#bd542c"/>
+<text x="428" y="254" font-size="13">22/24</text>
+<text x="25" y="296" font-size="14">Ball / fast</text>
+<rect x="190" y="284" width="196.875" height="16" fill="#28648d"/>
+<text x="428" y="297" font-size="13">21/24</text>
+<rect x="190" y="305" width="215.625" height="16" fill="#bd542c"/>
+<text x="428" y="318" font-size="13">23/24</text>
+<text x="25" y="360" font-size="14">Box / slow</text>
+<rect x="190" y="348" width="178.125" height="16" fill="#28648d"/>
+<text x="428" y="361" font-size="13">19/24</text>
+<rect x="190" y="369" width="159.375" height="16" fill="#bd542c"/>
+<text x="428" y="382" font-size="13">17/24</text>
+<text x="25" y="424" font-size="14">Box / medium</text>
+<rect x="190" y="412" width="168.75" height="16" fill="#28648d"/>
+<text x="428" y="425" font-size="13">18/24</text>
+<rect x="190" y="433" width="103.125" height="16" fill="#bd542c"/>
+<text x="428" y="446" font-size="13">11/24</text>
+<text x="25" y="488" font-size="14">Box / fast</text>
+<rect x="190" y="476" width="196.875" height="16" fill="#28648d"/>
+<text x="428" y="489" font-size="13">21/24</text>
+<rect x="190" y="497" width="215.625" height="16" fill="#bd542c"/>
+<text x="428" y="510" font-size="13">23/24</text>
+<text x="590" y="118" font-size="16">Tilt 105 degrees + hold 0.5 s</text>
+<rect x="590" y="156" width="215.625" height="16" fill="#28648d"/>
+<text x="828" y="169" font-size="13">23/24</text>
+<rect x="590" y="177" width="196.875" height="16" fill="#bd542c"/>
+<text x="828" y="190" font-size="13">21/24</text>
+<rect x="590" y="220" width="178.125" height="16" fill="#28648d"/>
+<text x="828" y="233" font-size="13">19/24</text>
+<rect x="590" y="241" width="168.75" height="16" fill="#bd542c"/>
+<text x="828" y="254" font-size="13">18/24</text>
+<rect x="590" y="284" width="168.75" height="16" fill="#28648d"/>
+<text x="828" y="297" font-size="13">18/24</text>
+<rect x="590" y="305" width="168.75" height="16" fill="#bd542c"/>
+<text x="828" y="318" font-size="13">18/24</text>
+<rect x="590" y="348" width="196.875" height="16" fill="#28648d"/>
+<text x="828" y="361" font-size="13">21/24</text>
+<rect x="590" y="369" width="159.375" height="16" fill="#bd542c"/>
+<text x="828" y="382" font-size="13">17/24</text>
+<rect x="590" y="412" width="196.875" height="16" fill="#28648d"/>
+<text x="828" y="425" font-size="13">21/24</text>
+<rect x="590" y="433" width="121.875" height="16" fill="#bd542c"/>
+<text x="828" y="446" font-size="13">13/24</text>
+<rect x="590" y="476" width="159.375" height="16" fill="#28648d"/>
+<text x="828" y="489" font-size="13">17/24</text>
+<rect x="590" y="497" width="196.875" height="16" fill="#bd542c"/>
+<text x="828" y="510" font-size="13">21/24</text>
+<text x="25" y="575" font-size="13">Success includes no floor contact, continuous required finger contact, and at most 25 mm palm-relative drift.</text></g></svg>

@@ -24,7 +24,7 @@ ARRIVAL_SPEED_SCALES = {"slow": 0.75, "medium": 1.0, "fast": 1.25}
 HOLD_DURATION_S = .5
 
 
-def position_palm(model, data, home, arm_dofs, goal, window, speed):
+def position_palm(model, data, home, arm_dofs, goal, window, speed, desired_rotation=None):
     """在独立状态中求逆运动学，再让真实仿真中的七个关节跟踪目标。"""
     joints = [model.joint(f"joint{i}") for i in range(1, 8)]
     qadr = [j.qposadr[0] for j in joints]
@@ -33,9 +33,14 @@ def position_palm(model, data, home, arm_dofs, goal, window, speed):
     ik.qpos[:] = data.qpos
     palm = ik.body("hand/palm_lower")
     reference = data.body("hand/palm_lower").xmat.reshape(3, 3).copy()
+    if desired_rotation is not None:
+        reference = desired_rotation
     jac_p = np.empty((3, model.nv))
     jac_r = np.empty_like(jac_p)
     limits = model.jnt_range[[j.id for j in joints]]
+    if desired_rotation is not None:
+        limits = np.column_stack((np.maximum(limits[:,0],model.actuator_ctrlrange[ctrl,0]),
+                                  np.minimum(limits[:,1],model.actuator_ctrlrange[ctrl,1])))
     for _ in range(100):
         mujoco.mj_forward(model, ik)
         current = palm.xmat.reshape(3, 3)
@@ -47,6 +52,8 @@ def position_palm(model, data, home, arm_dofs, goal, window, speed):
         mujoco.mj_jacBody(model, ik, jac_p, jac_r, palm.id)
         jac = np.vstack((jac_p[:, arm_dofs], jac_r[:, arm_dofs]))
         delta = jac.T @ np.linalg.solve(jac @ jac.T + 1e-5 * np.eye(6), error)
+        if desired_rotation is not None:
+            delta = np.clip(delta,-.15,.15)
         ik.qpos[qadr] = np.clip(ik.qpos[qadr] + delta, limits[:, 0], limits[:, 1])
     else:
         raise ValueError("Requested palm pose exceeds the reach of this IK configuration.")
@@ -102,7 +109,17 @@ def record_contacts(writer, model, data, geom, hand_geoms, velocity, spin, t, mo
 def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim_x_mm=0.,
         pitch_deg=0., palm_x_mm=None, summary=None, strategy="fixed", arrival_speed="medium",
         after_contact_step=None, dip3_duration=None, timing_trial=None, hand_feedback=False,
-        contact_observer=None, max_delay_ms=None, thumb_base_offset_deg=0., post_close_control=None):
+        contact_observer=None, max_delay_ms=None, thumb_base_offset_deg=0., post_close_control=None,
+        wrist_control=None, frame_observer=None, arm_buffer=None, evaluation="tilt",
+        hold_duration_s=HOLD_DURATION_S, pretilt_deg=0.):
+    if not np.isfinite(pretilt_deg) or abs(pretilt_deg)>90:
+        raise ValueError("Pre-catch palm rotation must be within +/-90 degrees")
+    if evaluation not in ("tilt", "hold"):
+        raise ValueError("Evaluation must be tilt or hold")
+    if not np.isfinite(hold_duration_s) or hold_duration_s <= 0:
+        raise ValueError("Hold duration must be finite and positive")
+    if evaluation == "hold" and wrist_control is not None:
+        raise ValueError("Hold-only evaluation requires no tilt controller")
     # 1. 替换来物的几何形状，各组复用同样的发射条件和手指控制器。
     model = build_scene(shape)
     data = mujoco.MjData(model)
@@ -169,7 +186,7 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
     # 3. 三组共用相同的倾腕与保持时间。预计到达时间指球心到达目标的时刻。
     dt = model.opt.timestep
     tilt_start = max(.90, arrival + duration + .25)
-    hold_start = tilt_start + 1.
+    hold_start = tilt_start + (1. if evaluation == "tilt" else 0.)
     first_touch = close_start = reference = None
     first_links = []
     precontact_speed = None
@@ -188,10 +205,23 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
             window.cam.lookat[:] = target
             window.cam.distance = .65
             window.cam.elevation = -20
-        if palm_x_mm is not None:
-            home = position_palm(model, data, np.asarray(home), arm_dofs, goal, window, speed)
+        if palm_x_mm is not None or pretilt_deg:
+            desired_rotation = None
+            if pretilt_deg:
+                # 保持世界系接取中心、来物轨迹不变，只改变接球前的掌面朝向。
+                angle=np.deg2rad(pretilt_deg)
+                turn=np.array([[np.cos(angle),0.,np.sin(angle)],[0.,1.,0.],[-np.sin(angle),0.,np.cos(angle)]])
+                desired_rotation=rotation.copy()@turn
+                goal=target-desired_rotation@np.array([aim_x_mm/1000.,-.055,-.08])
+            home = position_palm(model, data, np.asarray(home), arm_dofs, goal, window, speed,desired_rotation)
             if home is None:
                 return False
+            if desired_rotation is not None:
+                position_error=np.linalg.norm(palm.xpos-goal)
+                orientation_error=np.arccos(np.clip((np.trace(desired_rotation.T@rotation)-1)/2,-1,1))
+                if position_error>.005 or orientation_error>np.deg2rad(3):
+                    raise ValueError("Pre-catch pose tracking exceeds 5 mm or 3 degrees")
+                normal_at_start=-rotation[:,2].copy()
         achieved_mm = 1000 * np.dot(palm.xpos - origin, launch_axis)
         error_mm = 1000 * np.linalg.norm(palm.xpos - goal)
         # 发射点和初速度在移掌前已按世界坐标确定。所有试验时间以释放为零点。
@@ -203,8 +233,15 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
         mujoco.mj_forward(model, data)
         if contacts_with(data, object_geom):
             raise RuntimeError("Object starts in contact; check the launch pose.")
-        for k in range(int(np.ceil((hold_start + HOLD_DURATION_S) / dt))):
+        # 自适应轨迹允许延长倾腕；完成后仍须经历完整的保持阶段。
+        end_limit = hold_start + hold_duration_s
+        if wrist_control is not None:
+            hold_start = tilt_start + wrist_control.max_duration
+            end_limit = hold_start + hold_duration_s
+        for k in range(int(np.ceil(end_limit / dt))):
             t = k * dt
+            if t >= hold_start + hold_duration_s - 1e-12:
+                break
             planned_t = arrival
             if timing_trial is not None:
                 z_before = float(flight.qpos[2])
@@ -239,7 +276,15 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
 
             # 5. 接球时维持手掌姿态；随后在一秒内平滑倾腕 105°，考验抓持。
             u = np.clip(t - tilt_start, 0., 1.)
+            if evaluation == "hold":
+                u = 0.
+            if wrist_control is not None:
+                u = wrist_control.advance(model, data, t, tilt_start)
+                if wrist_control.completed_at is not None:
+                    hold_start = wrist_control.completed_at
             data.actuator("act6").ctrl[:] = home[5] + np.deg2rad(105) * u*u*(3 - 2*u)
+            if arm_buffer is not None:
+                arm_buffer.command(model, data, t, tilt_start)
             data.qfrc_applied[arm_dofs] = data.qfrc_bias[arm_dofs]
             # mj_step 返回时接触几何仍对应本步起点，速度已经积分到下一步。
             # 记录时保存步初速度，让接触点位置和速度对应同一个时刻。
@@ -290,7 +335,11 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
             # 7. 最后 0.5 秒要求球连续与手指接触，同时检查确实完成了倾腕。
             if t >= hold_start:
                 hold_ok &= bool(touching & fingers)
-                hold_ok &= (-rotation[:, 2] @ normal_at_start) <= 0.
+                if evaluation == "tilt":
+                    hold_ok &= (-rotation[:, 2] @ normal_at_start) <= 0.
+            # 录制回调读取仿真状态，图像采样不会改变控制命令或积分步长。
+            if frame_observer is not None:
+                frame_observer(model, data, t, tilt_start, hold_start)
             if window and k % 8 == 0:
                 if not window.is_running():
                     print("Viewer closed before evaluation finished.")
@@ -299,6 +348,10 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
                 # 仅改变播放节奏，仿真的时间步长与控制器保持一致。
                 time.sleep(8 * dt / speed)
     passed = first_touch is not None and hold_ok and not grounded and drift <= .025
+    if wrist_control is not None and wrist_control.completed_at is None:
+        passed = False
+    if arm_buffer is not None and arm_buffer.infeasible:
+        passed = False
     if first_touch is None or (grounded and last_hand_before_floor is None):
         failure_stage = "missed_hand"
     elif grounded:
@@ -310,6 +363,10 @@ def run(mode, lead, duration, headless, shape="ball", speed=1., writer=None, aim
             failure_stage = "dropped_during_hold"
     elif first_excess_drift is not None:
         failure_stage = "drift_during_tilt" if first_excess_drift < hold_start else "drift_during_hold"
+    elif wrist_control is not None and wrist_control.completed_at is None:
+        failure_stage = "tilt_timeout"
+    elif arm_buffer is not None and arm_buffer.infeasible:
+        failure_stage = "buffer_joint_limit"
     elif not hold_ok:
         failure_stage = "hold_check_failed"
     else:
