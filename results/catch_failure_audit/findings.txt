@@ -1,0 +1,66 @@
+当前失败诊断与研究参考
+
+数据范围：24条来球（803和805各12条）×4种接触后策略，共96次控制试验；不是96个独立随机来球。
+本次重新回放96次，保持、qualified、首触时间、漂移、峰值载荷及峰值加速度均与历史结果一致。
+
+物体保持失败：
+35次满足两秒连续手指接触、无落地、掌坐标漂移<=25 mm；61次未满足。
+61次未保持中，43次在前300 ms没有检测到持续对向支撑，18次检测到过早期对向支撑但仍未保持。
+“无早期支撑”是主要失败分类，不足以证明唯一因果；部分成功试验也未在前300 ms触发该代理指标。
+单侧推挤/闭指时机、接触几何及捕获窗口是需要下一轮对照验证的解释。
+现有结果不能把主要原因直接归为摩擦不足或手腕转动。
+
+实际运动约束失败：
+96次的接触前实际关节加速度峰值均>4 rad/s²，接触后峰值也均>4 rad/s²。
+其中20次整条试验的最高加速度出现在首次接触之前。
+因此把所有加速度超限都归因于碰撞并不准确；接触前参考生成/切换和执行器跟踪也必须检查。
+规划参考加速度受约束，不等于实际闭环加速度已经受约束；应进一步记录参考/实际q、v、a及总力矩命令。
+4 rad/s²仍保留为现有合格判定，未因结果不佳而放宽。
+“保持成功”和“通过运动约束”是不同结果；当前35次保持成功并非qualified成功。
+轨迹控制与撞击阶段的加速度需求应分别报告，避免仅靠一个全程峰值掩盖不同原因。
+
+反弹与缓冲：
+早期诊断发现首轮向外运动常在20-22 ms，闭指命令持续140 ms，对向支撑常到约200 ms才形成。
+接触后反应可能赶不上首次冲击；仅将总闭指延长到220 ms可能让物体更早逃出捕获区域。
+当前20%来球速度目标只是有限匹配；需要在关节/力矩/可用行程约束内进一步优化法向相对速度。
+导纳缓冲改变了接触时序与掌部路径，但独立检查没有稳定提高保持率或逐轨迹降低反弹，不能作为已解决方案。
+
+建议按顺序推进：
+1. 无物体碰撞条件下验证实际跟踪，定位MPC参考切换、反馈力矩和模型近似造成的接触前超限。
+2. 在可行运动约束内联合选择接取位姿、末端速度和剩余缓冲行程。
+3. 通过几何预成形与分指承载反馈建立包围；对已有支撑再做抗滑与夹持力分配。
+4. 单独研究被动弹性/阻尼结构；不通过暗改接触材料掩盖控制问题。
+
+研究参考（本项目不使用机器学习）：
+
+Uchiyama, Sano & Ryuman (2015), Adaptive control of a robotic manipulator for soft catching of a falling object.
+https://doi.org/10.1299/mej.14-00074
+原文摘要给出接触前位置/速度跟踪、接触后位置式阻抗力控切换，报告落下生鸡蛋实验。
+可参考速度匹配与切换结构；本项目尚未复现其自适应前馈，不能直接套用其成功结论。
+
+Baeuml, Wimboeck & Hirzinger (2010), Kinematically Optimal Catching a Flying Ball with a Hand-Arm-System.
+https://elib.dlr.de/67146/1/B%C3%A4uml2010.pdf
+七轴臂和四指手接球；讨论关节约束、手指预成形、包围以及快速柔顺闭合。
+文中指出其系统闭指时机需小于5 ms量级精度，不能把该数字当作所有手都适用的统一要求。
+对我们最有用的是保留来球通道并及时关闭逃逸通道，而不是简单增加全部手指夹紧速度。
+
+Kemper, Vejdani, Piercy & Hurst (2013), Optimal Passive Dynamics for Physical Interaction: Catching a Mass.
+https://mime.engineering.oregonstate.edu/research/drl/_documents/kemper_2013a.pdf
+分析惯性、执行器力和行程受限时的弹性/阻尼设计；强调机械被动动力学的作用。
+被动缓冲结构不是软件导纳，原文参数不能直接移植到七轴臂和灵巧手。
+
+Salehian, Khoramshahi & Billard (2016), A Dynamical System Approach for Softly Catching a Flying Object: Theory and Experiment.
+https://doi.org/10.1109/TRO.2016.2536749
+作者公开摘要：https://khoramshahi.github.io/publications/ （搜索softly catching）
+作者实验视频：https://www.youtube.com/watch?v=FxvVJzb61js
+研究短时间跟随来物以给闭指留下时间，并对三种产生弹性接触的物体进行实验。
+原文包含GMM/示教生成部分，不符合本项目不使用机器学习的要求；仅借鉴跟随和速度方向约束，不能整体照搬。
+
+Amanhoud, Khoramshahi & Billard (2019), A Dynamical System Approach to Motion and Force Generation in Contact Tasks.
+https://www.roboticsproceedings.org/rss15/p21.pdf
+参考接触运动/力生成、接触丢失后的反应和受扰动时的力再平衡；该论文并非自由飞行接球实验。
+论文的表面建模示例包含SVR，本项目不采用该部分；已知球/箱几何可用解析距离与法向替代。
+该替代在本灵巧手上尚未实现或验证。
+
+逐例CSV：failure_and_acceleration_audit.csv；分组汇总：summary.csv。
+可视化脚本：experiments/watch_catch.py；使用说明：docs/watch_catch_guide.txt。

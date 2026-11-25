@@ -24,10 +24,15 @@ from experiments.static_grasp import contacts_with
 from scene_setup.scene import build_scene
 
 
-def run_case(model,p,v,scenario,kind,seed,mode):
+def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
+             buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
+             allow_schedule_extension=False):
+    if not np.isfinite(closure_duration) or closure_duration<=0:
+        raise ValueError("Closure duration must be positive")
     data=launch(model,p,v)
     tracker=ArmReferenceTracker(model)
     hand=LeapHand(model)
+    hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
     mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.)
     reference=hold_plan(model,data)
@@ -42,6 +47,7 @@ def run_case(model,p,v,scenario,kind,seed,mode):
     pending=None
     accepted=not active
     braking=False
+    buffering_started=False
     first_contact=close=origin=None
     normal_speed=None
     grounded=False;continuous=True
@@ -52,21 +58,33 @@ def run_case(model,p,v,scenario,kind,seed,mode):
     solves=[];trace=[]
     dt=model.opt.timestep
     tick=round(mpc.period/dt)
+    if frame_observer is not None:
+        frame_observer(model,data,dict(first_contact_s=None,close_s=None,drift_mm=0.,
+            floor=False,finger_contact=False,plans_applied=0))
     while data.time<(first_contact if first_contact is not None else nominal)+2.3-dt/2:
         t=float(data.time)
         if active:
-            if first_contact is not None and not braking:
-                reference=braking_reference(model,data,t);pending=None;braking=True
+            if first_contact is not None and (not braking or (buffer_factory is not None and not buffering_started)):
+                reference=(braking_reference(model,data,t) if buffer_factory is None else
+                           buffer_factory(model,data,t,velocity))
+                pending=None;braking=True
+                buffering_started=buffer_factory is not None
             if not braking and isinstance(reference,AccelerationReference) and t>=reference.intercept_time-1e-10:
                 reference=braking_reference(model,data,t);pending=None;braking=True
             if pending is not None and t>=pending.observation_time-1e-10:
                 reference=pending;pending=None;accepted=True;applied+=1
             if not braking and first_contact is None and t<nominal+.25 and round(t/dt)%tick==0:
                 plan,info=mpc.solve(data,data.joint("flight").qpos[:3].copy(),data.joint("flight").qvel[:3].copy(),t,reference)
-                missed=info["wall_s"]>mpc.period
+                measured_overrun=info["wall_s"]>mpc.period
+                # 诊断回放可使用已记录的决策，隔离记录开销对控制时序的影响。
+                step=round(t/dt)
+                extending=solver_schedule is not None and step not in solver_schedule
+                if extending and not allow_schedule_extension:raise ValueError("Recorded solver schedule ended before contact")
+                missed=measured_overrun if solver_schedule is None or extending else solver_schedule[step]
                 overrun+=int(missed)
                 solves.append(dict(seed=seed,scenario=scenario,kind=kind,mode=mode,time_s=t,
-                    wall_ms=1000*info["wall_s"],feasible=info["feasible_candidates"],overrun=int(missed)))
+                    wall_ms=1000*info["wall_s"],feasible=info["feasible_candidates"],overrun=int(missed),
+                    measured_overrun=int(measured_overrun),decision_source="measured_extension" if extending else "measured" if solver_schedule is None else "recorded"))
                 if not missed and plan is not None:
                     pending=plan
         if close is None:
@@ -74,13 +92,23 @@ def run_case(model,p,v,scenario,kind,seed,mode):
             if trigger and accepted:
                 close=t
         if close is not None:
-            hand.command(data,hand.open_pose,hand.closed,(t-close)/.14)
+            if hand_controller is None:
+                hand.command(data,hand.open_pose,hand.closed,(t-close)/closure_duration)
+            else:
+                hand_controller.command(model,data,t-close)
+        elif hand_controller is not None:
+            hand_controller.prepare(model,data,t,nominal)
+        if hasattr(reference,"update"):
+            reference.update(model,data,t)
         tracker.command(data,reference,t)
         velocity=data.qvel.copy()
         mujoco.mj_step(model,data)
         touching=contacts_with(data,projectile)
         onset=first_contact is None and bool(touching&hand_geoms)
         if onset:first_contact=t
+        if hand_controller is not None:
+            # 已解出的真实接触力只影响下一物理步，避免使用未来接触信息。
+            hand_controller.observe(model,data)
         if first_contact is not None and t<first_contact+.1-1e-10:
             normal_load=0.
             for i,c in enumerate(data.contact):
@@ -104,6 +132,8 @@ def run_case(model,p,v,scenario,kind,seed,mode):
             np.max(abs(model.actuator_forcerange[tracker.ids]),axis=1))))
         q=data.qpos[tracker.qadr]
         margin=min(margin,float(min(np.r_[q-mpc.checker.lower,mpc.checker.upper-q])))
+        if step_observer is not None and first_contact is not None:
+            step_observer(model,data,t,first_contact,close,velocity,reference)
         mujoco.mj_kinematics(model,data);mujoco.mj_comPos(model,data)
         palm_state=data.body(palm)
         relative=palm_state.xmat.reshape(3,3).T@(data.body("projectile").xpos-palm_state.xpos)
@@ -116,6 +146,10 @@ def run_case(model,p,v,scenario,kind,seed,mode):
             trace.append(dict(seed=seed,scenario=scenario,mode=mode,time_s=t+dt,accepted=int(accepted),
                 finger_contact=int(bool(touching&fingers)),floor=int(floor in touching),
                 object_palm_x_mm=1000*relative[0],object_palm_y_mm=1000*relative[1],object_palm_z_mm=1000*relative[2],drift_mm=1000*drift))
+        # 完整状态记录在物理步和运动学更新后执行，观察器不参与控制。
+        if frame_observer is not None:
+            frame_observer(model,data,dict(first_contact_s=first_contact,close_s=close,drift_mm=1000*drift,
+                floor=bool(floor in touching),finger_contact=bool(touching&fingers),plans_applied=applied))
         if grounded:break
     held=accepted and first_contact is not None and not grounded and continuous and drift<=.025
     qualified=held and peak_speed<=1. and peak_accel<=4. and margin>=0 and force_fraction<=1.000001

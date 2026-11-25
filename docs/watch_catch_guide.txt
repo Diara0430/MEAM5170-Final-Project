@@ -1,0 +1,51 @@
+灵巧手接球：自己运行和观察
+
+在PowerShell（即使当前目录是C:\Windows\System32）直接运行：
+& 'D:\test code\.venv\Scripts\python.exe' 'C:\Users\gaoqi\Documents\GitHub\MEAM5170-Final-Project\experiments\watch_catch.py' --seed 805 --scenario 0 --speed 0.25 --loop
+
+脚本先执行真实MuJoCo仿真并记录，再打开窗口播放；已准备好的缓存会直接加载。
+历史案例复用原实验的规划超时决策，并核对held、qualified、首触时间、闭指时间、漂移和峰值法向载荷。
+这样慢放、暂停和绘图速度都不会改变原来试验的控制时序和物理结果。
+画面是物理仿真状态回放；拖动物体不会重新计算试验结果。改变控制代码后会重新记录。
+修改网格资产后应添加--refresh；缓存签名包含Python控制代码、场景XML、实验CSV和MuJoCo/NumPy版本，不包含全部网格字节。
+
+推荐先看3个案例，四组策略自动准备好：
+--seed 805 --scenario 0：原140 ms制动策略保持住，140 ms导纳策略漂移41.7 mm而未保持住；适合看缓冲并非总有帮助。
+--seed 805 --scenario 2：四组均未保持住，前300 ms均未检测到持续对向支撑；适合观察反弹与闭指窗口。
+--seed 805 --scenario 4：四组均保持住；适合和失败案例对照闭指/包围过程。
+
+窗口快捷键（先点击窗口获得键盘焦点）：
+Space：暂停/继续。
+N / P：下一组/上一组策略；1 / 2 / 3 / 4：直接选择策略。
+R：从头重播。C：跳到首次接触前40 ms。
+[ / ]：暂停并向后/向前移动一个2 ms物理步。
+- / =：降低/提高播放速度。
+T：切换手部近景和整体机械臂。鼠标滚轮缩放，鼠标拖动调整视角。
+关闭窗口退出程序。
+
+策略顺序：
+1 brake_140：原关节制动，140 ms闭指。
+2 admittance_140：25 mm虚拟导纳缓冲，140 ms闭指。
+3 brake_220：原关节制动，220 ms闭指。
+4 admittance_220：25 mm虚拟导纳缓冲，220 ms闭指。
+
+画面指标：
+Opposed support：不同手指/掌面位于物体质心两侧、接触法向夹角>120°且承载至少6 ms的代理指标。
+它不是完整力闭合证明；前300 ms没有检测到该指标不意味着之后一定无法保持。
+Sum normal load：各手-物接触点压缩法向载荷之和，包含夹持载荷，不能直接当作净力或净冲量。
+Palm/Finger 1/2/3/Thumb：各部位上一个已求解物理步的法向载荷。
+Outward ball speed：物体速度沿首次接触时向外掌面法向的分量；正数表示向外运动，不是材料恢复系数。
+Actual joint accel：由相邻记录帧关节速度差求得的七轴最大加速度，单位rad/s²。
+Hold drift：接触300 ms后，相对掌面保持位置的最大漂移；之前显示--。
+Trial result：HELD 2 s或NOT HELD，为整条试验的最终保持结果。
+Constraint-qualified：同时检查实际速度、加速度、关节边界及执行器力矩；HELD不等于qualified。
+绿色小点为上一个2 ms物理步的承载接触位置，橙色小点为最近300 ms的实际球心轨迹。
+手部重新着色仅为了看清指节，未改变质量、摩擦、刚度或接触参数。
+
+只看一组：在命令末尾添加--strategy brake_140 或--strategy admittance_140。
+不打开窗口：添加--record-only。
+从暂停开始：添加--paused。
+新随机发射：指定--seed及单个--strategy，脚本会采用新的实测规划时序；四组历史配对比较使用803/805。
+当前脚本是球体基准；尚未把不规则物体和随机外力纳入这组历史配对回放。
+
+研究与失败诊断：results/catch_failure_audit/findings.txt。

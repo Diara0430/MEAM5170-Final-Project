@@ -1,0 +1,43 @@
+中段指节改进：运行、参数与解释
+
+针对从指尖往掌面数第二段指节：LEAP模型hand/2、6、10，拇指同级hand/14。
+模型body名字dip/thumb_dip不应直接当作人体解剖关节名称。
+
+运行四组对照回放：
+& 'D:\test code\.venv\Scripts\python.exe' 'C:\Users\gaoqi\Documents\GitHub\MEAM5170-Final-Project\experiments\watch_catch.py' --experiment finger --seed 806 --scenario 3 --speed 0.25 --loop
+
+按1：original，原140 ms全指smoothstep。
+按2：middle_limited，中段梯形速度参考+模型前馈/PD跟踪。
+按3：middle_preshape，增加0.30 rad轻度预成形。
+按4：middle_compliant，增加中段/远端承载后的柔顺，并恢复保持刚度。
+Space暂停；[和]逐2 ms步；N/P切换；C跳到接触前40 ms；R重播；T切换镜头。
+右上角新增各中段的实际角度（deg）和实际速度（rad/s），可直接核对用户指出的位置。
+中段参考的速度/加速度有上限，实际碰撞状态仍可能偏离；观察实际数值，不应只看参考。
+Other joints closure只表示其余关节原140 ms闭合进度，不表示中段已经到达最终角度。
+
+示例：
+806/3：原控制漂移34.9 mm而未保持，新限速版约23.0 mm、完整柔顺版约18.3 mm，满足原25 mm保持阈值。
+806/11：原控制保持，新版本未保持；查看这个退步案例，避免只关注成功画面。
+805/8：原控制未保持，完整柔顺版保持；该种子属于开发集。
+
+实现不是降低整个手的闭指速度：
+其他关节保持原140 ms路径；只有中段采用限速8.5 rad/s、限参考加速度80 rad/s²并提前减速的轨迹。
+采用手指惯性矩阵块及偏置项前馈、位置/速度反馈，避免因伺服滞后而高速追赶最终位置。
+保留1.30 rad（74.5°）的普通中段终点及1.10 rad拇指终点；主要减少实际越过目标角度的过冲。
+预成形组在预测穿过捕获平面前200 ms开始，用120 ms轻弯0.30 rad，保留来球通道。
+柔顺组检测该中段及远端>=0.10 N承载，降低刚度、增加阻尼、减弱运动前馈；120-240 ms恢复保持刚度。
+位置指令仍经过原模型ctrlrange和±0.95 Nm关节执行器限位；没有增加力矩能力或修改球体/摩擦。
+
+不要把独立验证结果理解成全面解决：
+806共12条来球，原控制和新控制均保持6条，新控制有1条改善、1条退步。
+新中段实际速度/过冲明显减少，60-160 ms后段反弹多数情况下减小；首60 ms基本未改善。
+实际手臂加速度限制尚未解决，各组qualified仍为0。滑动、捕获几何、初次碰撞仍是后续工作。
+结果：results/finger_closure_validation/experiment_notes.txt，图表均为英文。
+源码：controllers/joint_aware_closure.py（中文注释）、experiments/finger_closure_ablation.py。
+
+重新进行全部实验（用一个尚不存在的新输出目录）：
+python -m experiments.finger_closure_ablation --output-dir results/<new-folder> --seeds 805 806
+python -m experiments.finger_closure_report results/<new-folder>
+
+课程对应：梯形速度轨迹与制动距离、模型惯性/偏置前馈、PD/阻抗反馈、接触事件与分阶段控制。
+论文参考：DLR2010快速柔顺闭指/预成形/包围，Uchiyama2015接触阶段切换。实现完全不使用机器学习。

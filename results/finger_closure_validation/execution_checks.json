@@ -1,0 +1,10 @@
+{
+  "unique_trials": 96,
+  "historical_seed805_baseline_regressions": "12 passed inside experiment",
+  "paired_precontact_checks": "original/limited and preshape/compliant passed for all launches",
+  "execution_smoke_seed806_case3_frames": 1446,
+  "maximum_actual_hand_joint_torque_Nm": 0.95,
+  "hand_ctrl_limits_passed": true,
+  "replay_matches_saved_drift": true,
+  "actual_arm_qualified_trials": 0
+}

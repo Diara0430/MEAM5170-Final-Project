@@ -1,0 +1,10 @@
+{
+  "completed_unique_trials": 96,
+  "paired_precontact_invariants": "passed within 1e-9 in all 24 launches",
+  "historical_seed801_scenario0_regression": "passed held/contact/close/drift/peak-force",
+  "reference_limit_violation_steps": 0,
+  "buffer_qp_fallback_steps": 129,
+  "buffer_updates_over_2ms": 33,
+  "actual_limit_qualified_trials": 0,
+  "note": "Actual impact limits remain unmet; fallback and timing events are reported, not hidden."
+}
