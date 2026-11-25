@@ -1,0 +1,188 @@
+"""真实球体的滚动时域接取对照。20ms求解/通信等待期间继续执行旧参考。
+
+固定掌面预测闭指、固定掌面接触闭指、MPC零速度目标、MPC部分速度匹配。
+种子800为历史基准，801为本轮独立验证；接触后限幅制动并保持两秒。
+"""
+import argparse
+from pathlib import Path
+from statistics import median
+import sys
+
+import mujoco
+import numpy as np
+
+if __package__ in (None, ""):
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from controllers.arm_reference_tracker import ArmReferenceTracker
+from controllers.catching_mpc import CatchingMPC,AccelerationReference,braking_reference
+from controllers.hand import LeapHand
+from experiments.active_ball_catch import launch,hold_plan
+from experiments.contact_impulse import write_rows
+from experiments.intercept_candidates import scenarios
+from experiments.intercept_tracking import initial
+from experiments.static_grasp import contacts_with
+from scene_setup.scene import build_scene
+
+
+def run_case(model,p,v,scenario,kind,seed,mode):
+    data=launch(model,p,v)
+    tracker=ArmReferenceTracker(model)
+    hand=LeapHand(model)
+    active=mode.startswith("mpc")
+    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.)
+    reference=hold_plan(model,data)
+    roots=np.roots([.5*model.opt.gravity[2],v[2],p[2]-
+        (data.body("hand/palm_lower").xpos+data.body("hand/palm_lower").xmat.reshape(3,3)@mpc.checker.local_capture)[2]])
+    times=[float(r.real) for r in roots if abs(r.imag)<1e-9 and r.real>0 and v[2]+model.opt.gravity[2]*r.real<0]
+    nominal=min(times) if times else .5
+    projectile=model.geom("projectile").id;floor=model.geom("floor").id
+    palm=model.body("hand/palm_lower").id
+    hand_geoms={i for i,b in enumerate(model.geom_bodyid) if (model.body(b).name or "").startswith("hand/")}
+    fingers={i for i in hand_geoms if model.geom_bodyid[i]!=palm}
+    pending=None
+    accepted=not active
+    braking=False
+    first_contact=close=origin=None
+    normal_speed=None
+    grounded=False;continuous=True
+    drift=peak_speed=peak_accel=peak_force=force_fraction=0.
+    impulse=0.
+    margin=float("inf")
+    overrun=applied=0
+    solves=[];trace=[]
+    dt=model.opt.timestep
+    tick=round(mpc.period/dt)
+    while data.time<(first_contact if first_contact is not None else nominal)+2.3-dt/2:
+        t=float(data.time)
+        if active:
+            if first_contact is not None and not braking:
+                reference=braking_reference(model,data,t);pending=None;braking=True
+            if not braking and isinstance(reference,AccelerationReference) and t>=reference.intercept_time-1e-10:
+                reference=braking_reference(model,data,t);pending=None;braking=True
+            if pending is not None and t>=pending.observation_time-1e-10:
+                reference=pending;pending=None;accepted=True;applied+=1
+            if not braking and first_contact is None and t<nominal+.25 and round(t/dt)%tick==0:
+                plan,info=mpc.solve(data,data.joint("flight").qpos[:3].copy(),data.joint("flight").qvel[:3].copy(),t,reference)
+                missed=info["wall_s"]>mpc.period
+                overrun+=int(missed)
+                solves.append(dict(seed=seed,scenario=scenario,kind=kind,mode=mode,time_s=t,
+                    wall_ms=1000*info["wall_s"],feasible=info["feasible_candidates"],overrun=int(missed)))
+                if not missed and plan is not None:
+                    pending=plan
+        if close is None:
+            trigger=t>=nominal-.04 if mode=="static_predict" else first_contact is not None
+            if trigger and accepted:
+                close=t
+        if close is not None:
+            hand.command(data,hand.open_pose,hand.closed,(t-close)/.14)
+        tracker.command(data,reference,t)
+        velocity=data.qvel.copy()
+        mujoco.mj_step(model,data)
+        touching=contacts_with(data,projectile)
+        onset=first_contact is None and bool(touching&hand_geoms)
+        if onset:first_contact=t
+        if first_contact is not None and t<first_contact+.1-1e-10:
+            normal_load=0.
+            for i,c in enumerate(data.contact):
+                if projectile not in (c.geom1,c.geom2):continue
+                other=c.geom2 if c.geom1==projectile else c.geom1
+                if other not in hand_geoms:continue
+                if c.efc_address>=0:
+                    wrench=np.empty(6);mujoco.mj_contactForce(model,data,i,wrench)
+                    normal_load+=max(0.,wrench[0])
+                if onset and c.dist<=0:
+                    jo,jh=np.empty((3,model.nv)),np.empty((3,model.nv))
+                    mujoco.mj_jac(model,data,jo,None,c.pos,model.body("projectile").id)
+                    mujoco.mj_jac(model,data,jh,None,c.pos,model.geom_bodyid[other])
+                    speed=abs(float(c.frame[:3]@((jo-jh)@velocity)))
+                    normal_speed=max(normal_speed or 0.,speed)
+            peak_force=max(peak_force,normal_load);impulse+=normal_load*dt
+        grounded |= floor in touching
+        peak_speed=max(peak_speed,float(max(abs(data.qvel[tracker.dofs]))))
+        peak_accel=max(peak_accel,float(max(abs((data.qvel[tracker.dofs]-velocity[tracker.dofs])/dt))))
+        force_fraction=max(force_fraction,float(max(abs(data.actuator_force[tracker.ids])/
+            np.max(abs(model.actuator_forcerange[tracker.ids]),axis=1))))
+        q=data.qpos[tracker.qadr]
+        margin=min(margin,float(min(np.r_[q-mpc.checker.lower,mpc.checker.upper-q])))
+        mujoco.mj_kinematics(model,data);mujoco.mj_comPos(model,data)
+        palm_state=data.body(palm)
+        relative=palm_state.xmat.reshape(3,3).T@(data.body("projectile").xpos-palm_state.xpos)
+        hold_start=(first_contact if first_contact is not None else nominal)+.3
+        if t+dt>=hold_start-1e-10:
+            if origin is None:origin=relative.copy()
+            drift=max(drift,float(np.linalg.norm(relative-origin)))
+            continuous &= bool(touching&fingers)
+        if round((t+dt)/dt)%5==0:
+            trace.append(dict(seed=seed,scenario=scenario,mode=mode,time_s=t+dt,accepted=int(accepted),
+                finger_contact=int(bool(touching&fingers)),floor=int(floor in touching),
+                object_palm_x_mm=1000*relative[0],object_palm_y_mm=1000*relative[1],object_palm_z_mm=1000*relative[2],drift_mm=1000*drift))
+        if grounded:break
+    held=accepted and first_contact is not None and not grounded and continuous and drift<=.025
+    qualified=held and peak_speed<=1. and peak_accel<=4. and margin>=0 and force_fraction<=1.000001
+    return dict(seed=seed,scenario=scenario,kind=kind,mode=mode,accepted=int(accepted),contacted=int(first_contact is not None),
+        held=int(held),qualified=int(qualified),first_contact_s=first_contact,close_s=close,
+        first_normal_relative_speed_m_s=normal_speed,peak_normal_first100ms_N=peak_force,normal_impulse_first100ms_Ns=impulse,
+        drift_mm=1000*drift,peak_speed=peak_speed,peak_accel=peak_accel,force_fraction=force_fraction,
+        joint_margin_rad=margin,qp_calls=len(solves),qp_overruns=overrun,plans_applied=applied),solves,trace
+
+
+def summarize(rows,solves):
+    summary=[]
+    for seed in sorted(set(r["seed"] for r in rows)):
+        for kind in ("near","far","urgent"):
+            for mode in ("static_predict","static_contact","mpc_stop","mpc_match"):
+                group=[r for r in rows if (r["seed"],r["kind"],r["mode"])==(seed,kind,mode)]
+                speed=[r["first_normal_relative_speed_m_s"] for r in group if r["first_normal_relative_speed_m_s"] is not None]
+                force=[r["peak_normal_first100ms_N"] for r in group if r["contacted"]]
+                calls=[r["wall_ms"] for r in solves if (r["seed"],r["kind"],r["mode"])==(seed,kind,mode)]
+                summary.append(dict(seed=seed,kind=kind,mode=mode,n=len(group),accepted=sum(r["accepted"] for r in group),
+                    contacted=sum(r["contacted"] for r in group),held=sum(r["held"] for r in group),qualified=sum(r["qualified"] for r in group),
+                    median_normal_speed=median(speed) if speed else None,median_peak_normal_N=median(force) if force else None,
+                    median_qp_ms=median(calls) if calls else None,qp_overruns=sum(r["qp_overruns"] for r in group)))
+    return summary
+
+
+def plot(path,summary):
+    seed=max(int(r["seed"]) for r in summary)
+    near=[r for r in summary if r["kind"]=="near" and int(r["seed"])==seed]
+    height=170+40*len(near)
+    svg=[f'<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="{height}">',
+         '<rect width="100%" height="100%" fill="white"/>',
+         '<g font-family="Arial" fill="#18364a">',
+         f'<text x="25" y="35" font-size="22">Course-based QP-MPC: ball trajectory seed {seed}</text>',
+         '<text x="25" y="62" font-size="13">20 ms computation delay. Contact-triggered closure for both MPC variants. Matching target: 20% of ball velocity.</text>']
+    columns=((25,"Strategy"),(230,"Applied"),(350,"Held 2 s"),(480,"Qualified"),(600,"Normal speed (m/s)"),(820,"Peak force (N)"),(980,"QP (ms)"))
+    for x,label in columns:svg.append(f'<text x="{x}" y="105" font-size="13" font-weight="bold">{label}</text>')
+    for i,r in enumerate(near):
+        speed="-" if r["median_normal_speed"] is None else f'{r["median_normal_speed"]:.2f}'
+        force="-" if r["median_peak_normal_N"] is None else f'{r["median_peak_normal_N"]:.1f}'
+        solve="-" if r["median_qp_ms"] is None else f'{r["median_qp_ms"]:.2f}'
+        values=(r["mode"],f'{r["accepted"]}/{r["n"]}',f'{r["held"]}/{r["n"]}',f'{r["qualified"]}/{r["n"]}',speed,force,solve)
+        for (x,_),value in zip(columns,values):svg.append(f'<text x="{x}" y="{144+40*i}" font-size="14">{value}</text>')
+    svg.append(f'<text x="25" y="{height-20}" font-size="13">Qualified includes actual joint limits and collision acceleration. Force values are medians of first-100-ms normal-load peaks.</text></g></svg>')
+    path.write_text("\n".join(svg),encoding="utf-8")
+
+
+if __name__=="__main__":
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir",type=Path,required=True)
+    parser.add_argument("--seeds",type=int,nargs="+",default=[800,801])
+    args=parser.parse_args()
+    args.output_dir.mkdir(parents=True,exist_ok=False)
+    model=build_scene("ball");data=initial(model);palm=data.body("hand/palm_lower")
+    center=palm.xpos+palm.xmat.reshape(3,3)@np.array([0.,-.055,-.08])
+    rows,solves,traces=[],[],[]
+    for seed in args.seeds:
+        for scenario,kind,p,v in scenarios(center,model.opt.gravity,seed=seed):
+            for mode in ("static_predict","static_contact","mpc_stop","mpc_match"):
+                row,calls,trace=run_case(model,p,v,scenario,kind,seed,mode)
+                rows.append(row);solves.extend(calls);traces.extend(trace)
+            print(seed,scenario,[(r["mode"],r["held"]) for r in rows[-4:]],flush=True)
+    summary=summarize(rows,solves)
+    write_rows(args.output_dir/"trials.csv",rows)
+    write_rows(args.output_dir/"solver_times.csv",solves)
+    write_rows(args.output_dir/"time_series.csv",traces)
+    write_rows(args.output_dir/"summary.csv",summary)
+    plot(args.output_dir/"catching_mpc_en.svg",summary)
+    for r in summary:
+        if r["kind"]=="near":print(r)

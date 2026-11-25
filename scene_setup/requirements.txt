@@ -1,2 +1,4 @@
 mujoco==3.14.0
 numpy
+scipy
+osqp

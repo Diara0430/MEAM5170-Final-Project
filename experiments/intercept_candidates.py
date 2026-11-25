@@ -19,8 +19,8 @@ from experiments.contact_impulse import write_rows
 from scene_setup.scene import build_scene
 
 
-def scenarios(center,gravity):
-    rng=np.random.default_rng(800)
+def scenarios(center,gravity,seed=800):
+    rng=np.random.default_rng(seed)
     for i in range(20):
         kind="near" if i<12 else "far" if i<16 else "urgent"
         delay=rng.uniform(.45,.65) if kind!="urgent" else .08

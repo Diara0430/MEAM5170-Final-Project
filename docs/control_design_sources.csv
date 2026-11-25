@@ -1,0 +1,11 @@
+kind,source,location,design_use,implementation,scope
+course,Lecture 12 Model Predictive Control,D:/学校/MEAM 5170/lecture/lecture12.pdf pages 6-9,有限时域状态与输入约束及只执行首段再优化,controllers/catching_mpc.py,两段加速度与20ms滚动更新
+course,Lecture 13 Instantaneous QP Control,D:/学校/MEAM 5170/lecture/lecture13.pdf pages 7-10,固定当前雅可比与动力学系数形成小规模QP,controllers/catching_mpc.py,当前运动学线性化与关节力矩近似约束
+course_code,OperationalSpaceWalkingController,D:/学校/MEAM 5170/code/osc.py SetupAndSolveQP,任务误差二次代价和执行器限制以及QP求解状态检查,controllers/catching_mpc.py,将课程控制结构用于七轴手臂
+course_code,OperationalSpaceTrackingObjective,D:/学校/MEAM 5170/osc_tracking_objective.py Update,位置速度加速度的任务跟踪接口,controllers/arm_reference_tracker.py,复用现有逆动力学参考跟踪
+paper,Adaptive control of a robotic manipulator for soft catching of a falling object,https://doi.org/10.1299/mej.14-00074,接触前速度匹配及接触后控制阶段切换,controllers/catching_mpc.py,本轮实现部分速度目标和限幅制动
+paper,Kinematically Optimal Catching a Flying Ball with a Hand-Arm-System,https://elib.dlr.de/67146/1/B%C3%A4uml2010.pdf,联合考虑接取时刻位姿与关节约束以及计算延迟,experiments/mpc_ball_catch.py,20ms延迟期间继续执行旧参考
+paper,Catching Objects with a Robot Arm using Model Predictive Control,https://ralfroemer99.github.io/publication/2022-acc-catching-objects-with-a-robot-arm-using-model-predictive-control,预测轨迹与接取目标及机器人控制相结合,controllers/catching_mpc.py,当前候选时间离散搜索和球体朝上掌面
+open_source,OSQP MPC example,https://osqp.org/docs/examples/mpc.html,稀疏二次规划及上下界约束API和滚动执行,controllers/catching_mpc.py,使用OSQP库并自行构造14变量问题
+open_source,GRAMPC,https://github.com/grampc/grampc,梯度式非线性MPC实现参考,docs/control_design_sources.csv,后续非线性MPC候选
+open_source,Optimal Control of 2 DOF Robot for ball catching sequence,https://github.com/chaitanya-t27/Optimal-Control-of-2-DOF-Robot-for-ball-catching-sequence,二维接取预测与目标位置代价组织,docs/control_design_sources.csv,教学参考
