@@ -1,0 +1,49 @@
+食指让位与拇指包围：验证结果与边界
+
+无机器学习。使用已知球体几何、网格距离、雅可比、局部QP和真实有限力矩执行器。
+807用于开发检查；早期808实验揭示自碰后，修正食指通道并以未见过的809作为新验证集。最终807/809为96次对照（24条来球×4策略）。
+中段柔顺基线保持不变；index_clearance仅改变食指；thumb_contact在此基础上于保持阶段接近；thumb_preshape再提前摆放拇指。
+单独食指让位与晚接近可能破坏原有捕获通道，属于消融对照，不推荐单独替换基线。
+最终协调策略：食指目标[0,0.8,0.9,0.5] rad、290 ms共享五次进度；拇指来球前向[0.8,0.5,1.0,0.65] rad整形。
+拇指预整形400 ms，参考峰值约4.69 rad/s；食指参考峰值约5.17 rad/s，实际速度单独记录。
+拇指晚接近使用4变量距离QP、关节/偏移约束、已有自接触线性约束及离散路径网格复核。
+触球载荷>=0.10 N持续6 ms后撤去推进速度，以当前姿态保持，并加入0.30 N的轻度法向前馈目标。
+0.30 N不是实际接触力硬限制；载荷超过1 N时仅撤去额外法向目标。惯性、位置反馈和其他手指挤压仍可能造成较大实际力。
+食指让位与预整形有意改变捕获；仅index_clearance/thumb_contact两组在前300 ms检查状态一致，不能声称全部组前300 ms相同。
+保持判定仍为接触300 ms后连续手指接触两秒、无落地、相对漂移<=25 mm；没有放宽阈值。
+
+seed | strategy | held | thumb bearing >=50ms* | three parts / rank6 >=50ms* | max thumb-hand overlap over full trial (mm)
+807 | middle_compliant | 7/12 | 2/12 | 2/12 | 11.002
+807 | index_clearance | 2/12 | 2/12 | 2/12 | 11.905
+807 | thumb_contact | 2/12 | 2/12 | 2/12 | 11.905
+807 | thumb_preshape | 8/12 | 5/12 | 5/12 | 0.133
+809 | middle_compliant | 6/12 | 1/12 | 1/12 | 10.723
+809 | index_clearance | 1/12 | 1/12 | 0/12 | 12.273
+809 | thumb_contact | 2/12 | 1/12 | 1/12 | 12.273
+809 | thumb_preshape | 8/12 | 4/12 | 4/12 | 0.339
+*前两项50 ms为保持窗口累计时长，最长连续承载另见enriched_trials.csv。秩6仅为局部线性力矩映射可控性代理，不能替代摩擦锥力闭合/动态稳定性证明。
+
+807完整协调版：新增成功1条，原成功退步0条，逐例漂移差中位数-0.63 mm。
+  middle_compliant: 首300 ms总法向载荷峰值中位数66.23 N，拇指总法向载荷瞬态最大值15.94 N。
+  thumb_preshape: 首300 ms总法向载荷峰值中位数68.62 N，拇指总法向载荷瞬态最大值31.40 N。
+809完整协调版：新增成功2条，原成功退步0条，逐例漂移差中位数-0.23 mm。
+  middle_compliant: 首300 ms总法向载荷峰值中位数134.52 N，拇指总法向载荷瞬态最大值7.33 N。
+  thumb_preshape: 首300 ms总法向载荷峰值中位数134.56 N，拇指总法向载荷瞬态最大值30.96 N。
+
+关键限制：
+接触载荷峰值没有全面降低，拇指的瞬态载荷可能增加；不能将保持成功改善等同于柔和接取或易碎物体安全。
+总法向载荷包含相互抵消的夹持载荷，不能当作物体净冲量。
+修正后完整策略的拇指相关手部网格重叠明显减小；这不等于已验证机器人所有部件的动态无碰撞。
+原基线存在约10 mm的食指尖/拇指尖重叠；相关基线模型局限已保留记录，没有通过关闭碰撞来改善结果。
+手臂实际加速度超限仍未解决，所有组qualified均为0。仅验证球体、已知状态、重力来球，尚未验证不规则物体、噪声、随机外力或实机。
+早期808有自碰的探索性结果不作为最终验证结论；最终以食指通道修正后的807/809数据为准。
+参考：DLR2010对预成形、包围和及时关闭逃逸通道的讨论；本项目自行实现，未复现其硬件或成功率。
+https://elib.dlr.de/67146/1/B%C3%A4uml2010.pdf
+网格距离定义：https://mujoco.readthedocs.io/en/stable/APIreference/APIfunctions.html#mj-geomdistance
+
+源代码：controllers/sphere_cage.py；experiments/sphere_cage_ablation.py；静态审查：thumb_sphere_reach.py、index_thumb_clearance_audit.py。
+复现：python -m experiments.sphere_cage_ablation --output-dir results/<new-folder> --seeds 807 809
+报告：python -m experiments.sphere_cage_report results/<folder>
+回放：python -m experiments.watch_catch --experiment cage --seed 809 --scenario 5 --speed .25 --loop
+另看809/2，完整策略仍未保持；回放红点表示拇指相关>1 mm网格重叠。
+下一步优先排查实际手臂加速度超限和接触载荷，再扩展物体形状/随机扰动。

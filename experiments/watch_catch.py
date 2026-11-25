@@ -23,9 +23,11 @@ from controllers.contact_closure import ContactClosure
 from controllers.hand import LeapHand
 from controllers.joint_aware_closure import ClosureConfig,JointAwareClosure
 from controllers.friction_hold import FrictionHoldClosure,HoldConfig
+from controllers.sphere_cage import CageConfig,SphereCageClosure
 from experiments.buffer_ablation import VARIANTS
 from experiments.finger_closure_ablation import FINGER_VARIANTS
 from experiments.holding_control_ablation import HOLD_VARIANTS
+from experiments.sphere_cage_ablation import CAGE_VARIANTS
 from experiments.intercept_candidates import scenarios
 from experiments.intercept_tracking import initial
 from experiments.mpc_ball_catch import run_case
@@ -63,6 +65,7 @@ class StateRecorder:
         self.eta=0.;self.slip=0.
         self.time=[];self.qpos=[];self.qvel=[];self.ctrl=[];self.object_pos=[]
         self.diag=[];self.load_history=[];self.point_history=[];self.point_counts=[]
+        self.self_points=[];self.self_counts=[];self.self_peak=None
 
     def contact_step(self,model,data,t,first,close,velocity,reference):
         # 此处接触力来自刚完成的物理步，不能用回放时mj_forward重算的力替代。
@@ -91,15 +94,27 @@ class StateRecorder:
         normal_speed=0. if self.normal is None else float(data.joint("flight").qvel[:3]@self.normal)
         self.time.append(float(data.time));self.qpos.append(data.qpos.copy());self.qvel.append(data.qvel.copy())
         self.ctrl.append(data.ctrl.copy());self.object_pos.append(data.body("projectile").xpos.copy())
+        self_depth=0.;self_points=np.zeros((8,3));self_count=0
+        for contact in data.contact:
+            a,b=self.support.group.get(contact.geom1),self.support.group.get(contact.geom2)
+            if a is None or b is None or 3 not in (a,b):continue
+            depth=max(0.,-float(contact.dist));self_depth=max(self_depth,depth)
+            if depth>.001 and self_count<8:self_points[self_count]=contact.pos;self_count+=1
+            if self.self_peak is None or 1000.*depth>self.self_peak["depth_mm"]:
+                self.self_peak=dict(depth_mm=1000.*depth,step_start_s=max(0.,float(data.time)-model.opt.timestep),
+                    body1=model.body(model.geom_bodyid[contact.geom1]).name,
+                    body2=model.body(model.geom_bodyid[contact.geom2]).name)
+        self.self_points.append(self_points);self.self_counts.append(self_count)
         self.diag.append([ -1. if first is None else 1000.*(data.time-first),self.fraction,
             float(self.loads.sum()),int(self.support.holding),int(info["finger_contact"]),int(info["floor"]),
-            info["drift_mm"],normal_speed,info["plans_applied"],self.eta,1000.*self.slip])
+            info["drift_mm"],normal_speed,info["plans_applied"],self.eta,1000.*self.slip,1000.*self_depth])
         self.load_history.append(self.loads.copy());self.point_history.append(self.points.copy());self.point_counts.append(self.point_count)
 
     def arrays(self):
         return {"time":np.asarray(self.time),"qpos":np.asarray(self.qpos),"qvel":np.asarray(self.qvel),
             "ctrl":np.asarray(self.ctrl),"object_pos":np.asarray(self.object_pos),"diag":np.asarray(self.diag),
-            "loads":np.asarray(self.load_history),"points":np.asarray(self.point_history),"point_counts":np.asarray(self.point_counts)}
+            "loads":np.asarray(self.load_history),"points":np.asarray(self.point_history),"point_counts":np.asarray(self.point_counts),
+            "self_points":np.asarray(self.self_points),"self_counts":np.asarray(self.self_counts)}
 
 
 def make_clip(model,args,name,signature):
@@ -121,7 +136,14 @@ def make_clip(model,args,name,signature):
     if selection is None:raise ValueError("Scenario must be an existing index 0-19")
     case,kind,p,v=selection
     hand_factory=None;buffered=False;duration=.14
-    if args.experiment=="holding":
+    if args.experiment=="cage":
+        mode=next(x[1] for x in CAGE_VARIANTS if x[0]==name)
+        config=CageConfig()
+        if schedule is not None:
+            prior=next(r for r in read_csv(args.results_dir/"trials.csv") if int(r["seed"])==args.seed and int(r["scenario"])==case and r["strategy"]==name)
+            config=CageConfig(**{key:float(prior[key]) for key in CageConfig.__dataclass_fields__})
+        hand_factory=(lambda m,h:JointAwareClosure(m,h,"compliant")) if mode is None else (lambda m,h:SphereCageClosure(m,h,mode,config))
+    elif args.experiment=="holding":
         mode=next(x[1] for x in HOLD_VARIANTS if x[0]==name)
         config=HoldConfig()
         if schedule is not None:
@@ -154,7 +176,7 @@ def make_clip(model,args,name,signature):
     clip=record.arrays()
     if not np.allclose(np.diff(clip["time"]),model.opt.timestep,atol=1e-10):raise ValueError("Nonuniform physics frames")
     meta=dict(signature=signature,strategy=name,seed=args.seed,scenario=case,historical_verified=verified,
-              timing="recorded" if schedule is not None else "measured",outcome=result)
+              timing="recorded" if schedule is not None else "measured",outcome=result,self_contact_peak=record.self_peak)
     args.cache_dir.mkdir(parents=True,exist_ok=True)
     np.savez_compressed(path,**clip,metadata=json.dumps(meta))
     print(f"Saved {name}: held={result['held']} qualified={result['qualified']} drift={result['drift_mm']:.1f} mm; historical match={verified}",flush=True)
@@ -172,6 +194,7 @@ def add_markers(scene,clip,index):
     # 橙色轨迹为实际记录的球心，绿色点为上一物理步承载接触位置。
     points=[(clip["object_pos"][j],.0018,[1.,.48,.08,.6]) for j in range(max(0,index-150),index,6)]
     points += [(point,.0028,[.15,1.,.35,1.]) for point in clip["points"][index,:int(clip["point_counts"][index])]]
+    points += [(point,.0035,[1.,.1,.1,1.]) for point in clip["self_points"][index,:int(clip["self_counts"][index])]]
     for pos,radius,color in points:
         if scene.ngeom>=scene.maxgeom:break
         mujoco.mjv_initGeom(scene.geoms[scene.ngeom],mujoco.mjtGeom.mjGEOM_SPHERE,
@@ -251,17 +274,17 @@ def play(model,args,clips,metas,focus):
                 dofs=[model.joint(f"joint{i}").dofadr[0] for i in range(1,8)]
                 step_accel=float(max(abs((clip["qvel"][index,dofs]-clip["qvel"][index-1,dofs])/
                                         (clip["time"][index]-clip["time"][index-1]))))
-            closure_label="Other joints closure" if args.experiment in ("finger","holding") else "Closure command"
-            labels=f"Strategy\nSeed / case\nPlayback\nTime / contact age\nPhase\n{closure_label}\nOpposed support*\nSum normal load*\nFriction utilization*\nContact slip*\nOutward ball speed\nActual joint accel\nHold drift\nTrial result\nConstraint-qualified"
+            closure_label="Other joints closure" if args.experiment in ("finger","holding","cage") else "Closure command"
+            labels=f"Strategy\nSeed / case\nPlayback\nTime / contact age\nPhase\n{closure_label}\nOpposed support*\nSum normal load*\nFriction utilization*\nContact slip*\nThumb self-depth*\nOutward ball speed\nActual joint accel\nHold drift\nTrial result\nConstraint-qualified"
             values=(f'{meta["strategy"]}\n{args.seed} / {args.scenario}\n'
                 f'{"PAUSED" if paused else "Playing"} {speed:.2f}x\n{clip["time"][index]:.3f} s / '
                 f'{"--" if contact_ms<0 else f"{contact_ms:.0f} ms"}\n{phase}\n{100.*diag[1]:.0f}%\n'
-                f'{"YES" if diag[3] else "No"}\n{diag[2]:.1f} N\n{diag[9]:.3f}\n{diag[10]:.2f} mm/s\n{diag[7]:+.3f} m/s\n{step_accel:.2f} rad/s2\n'
+                f'{"YES" if diag[3] else "No"}\n{diag[2]:.1f} N\n{diag[9]:.3f}\n{diag[10]:.2f} mm/s\n{diag[11]:.2f} mm\n{diag[7]:+.3f} m/s\n{step_accel:.2f} rad/s2\n'
                 f'{"--" if contact_ms<300 else f"{diag[6]:.1f} mm"}\n'
                 f'{"HELD 2 s" if outcome["held"] else "NOT HELD"}\n{"YES" if outcome["qualified"] else "No"}')
-            instructions=f"Space: pause   [ / ]: one physics step\nN / P or 1-{len(clips)}: strategy   R: restart\nC: jump near contact   T: camera\n- / =: playback speed\nOrange: ball trail   Green: loaded contacts*\n*Contact measurements: previous 2 ms physics step\nRecorded physics replay; mouse drag does not change outcome"
+            instructions=f"Space: pause   [ / ]: one physics step\nN / P or 1-{len(clips)}: strategy   R: restart\nC: jump near contact   T: camera\n- / =: playback speed\nOrange: ball trail; Green: ball contacts*\nRed: thumb-hand self penetration >1 mm*\n*Contact measurements: previous 2 ms physics step\nRecorded physics replay; mouse drag does not change outcome"
             load_text="\n".join(f"{label}: {value:.2f} N" for label,value in zip(LABELS,clip["loads"][index]))
-            if args.experiment in ("finger","holding"):
+            if args.experiment in ("finger","holding","cage"):
                 load_text+="\n\nMiddle joints: angle / speed"
                 for label,joint in zip(("F1","F2","F3","Thumb"),(2,6,10,14)):
                     j=model.joint(f"hand/{joint}")
@@ -286,8 +309,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed",type=int,default=805)
     parser.add_argument("--scenario",type=int,default=0)
-    parser.add_argument("--experiment",choices=["buffer","finger","holding"],default="buffer")
-    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS])),default="compare")
+    parser.add_argument("--experiment",choices=["buffer","finger","holding","cage"],default="buffer")
+    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS]+[x[0] for x in CAGE_VARIANTS])),default="compare")
     parser.add_argument("--speed",type=float,default=.25)
     parser.add_argument("--paused",action="store_true")
     parser.add_argument("--loop",action="store_true")
@@ -298,14 +321,14 @@ def main():
     parser.add_argument("--snapshot",type=Path,help="Save an offscreen contact-stage PNG instead of opening a window")
     parser.add_argument("--smoke-seconds",type=float,help=argparse.SUPPRESS)
     args=parser.parse_args()
-    result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation")
-    replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays")
+    result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation",cage="sphere_cage_clearance_validation")
+    replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays",cage="cage_clearance_replays")
     if args.results_dir is None:args.results_dir=ROOT/"results"/result_folders[args.experiment]
     if args.cache_dir is None:args.cache_dir=ROOT/"results"/replay_folders[args.experiment]
     if not np.isfinite(args.speed) or args.speed<=0:parser.error("Speed must be positive")
     if not 0<=args.scenario<20:parser.error("Scenario must be between 0 and 19")
-    variants=HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
-    allowed_seeds=(806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
+    variants=CAGE_VARIANTS if args.experiment=="cage" else HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
+    allowed_seeds=(807,809) if args.experiment=="cage" else (806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
     if args.strategy=="compare" and args.seed not in allowed_seeds:
         parser.error(f"Recorded paired comparison supports seeds {allowed_seeds}. For a new launch choose one --strategy explicitly.")
     if args.strategy!="compare" and args.strategy not in [x[0] for x in variants]:parser.error("Strategy does not belong to this experiment")
@@ -317,7 +340,7 @@ def main():
         clip,meta=make_clip(model,args,name,signature);clips.append(clip);metas.append(meta)
     if args.strategy=="compare":
         # 轻度预成形改变接触前手形，只在拥有相同预成形的组之间核对首触。
-        comparisons=[(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
+        comparisons=[(1,2)] if args.experiment=="cage" else [(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
         for left,right in comparisons:
             for key in ("first_contact_s","first_normal_relative_speed_m_s","plans_applied"):
                 if not np.isclose(metas[right]["outcome"][key],metas[left]["outcome"][key],atol=1e-9,rtol=1e-9):

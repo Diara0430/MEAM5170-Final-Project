@@ -1,0 +1,5 @@
+﻿index_pose,thumb_pose,fixed_thumb_path_gap_mm,two_progress_grid_gap_mm,index_1,index_2,index_3
+original,preshape,-28.7304409712231,-28.7304409712231,1.2,1.3,0.95
+original,original_end,-14.762981254996712,-28.743995509585787,1.2,1.3,0.95
+clearance,preshape,3.7985307688076437,1.9092292539256073,0.8,0.9,0.5
+clearance,original_end,30.740185527251867,-2.033357574582806,0.8,0.9,0.5

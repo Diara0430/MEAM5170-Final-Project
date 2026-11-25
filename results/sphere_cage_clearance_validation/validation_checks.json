@@ -1,0 +1,60 @@
+{
+  "trials": 96,
+  "distinct_arrivals": 24,
+  "coordinated_new_successes": 3,
+  "coordinated_lost_successes": 0,
+  "coordinated_max_thumb_hand_overlap_mm": 0.3393907484902116,
+  "max_actual_hand_torque_Nm": 0.95,
+  "min_coordinated_thumb_joint_margin_rad": 0.34878004666446594,
+  "all_qualified_zero": true,
+  "verified_replays": [
+    {
+      "file": "seed807_case1_index_clearance.npz",
+      "verified": true
+    },
+    {
+      "file": "seed807_case1_middle_compliant.npz",
+      "verified": true
+    },
+    {
+      "file": "seed807_case1_thumb_contact.npz",
+      "verified": true
+    },
+    {
+      "file": "seed807_case1_thumb_preshape.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case2_index_clearance.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case2_middle_compliant.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case2_thumb_contact.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case2_thumb_preshape.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case5_index_clearance.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case5_middle_compliant.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case5_thumb_contact.npz",
+      "verified": true
+    },
+    {
+      "file": "seed809_case5_thumb_preshape.npz",
+      "verified": true
+    }
+  ]
+}
