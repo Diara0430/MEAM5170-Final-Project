@@ -1,0 +1,12 @@
+{
+  "unique_trials": 72,
+  "paired_capture_checkpoints_passed": 72,
+  "historical_seed806_baseline_cases": 12,
+  "actual_hand_peak_torque_Nm": 0.95,
+  "maximum_extra_joint_target_offset_rad": 0.0231678936638083,
+  "qp_calls": 3003,
+  "qp_failures": 58,
+  "qp_updates_over10ms": 2,
+  "qualified_trials": 0,
+  "note": "QP fallback and timing events retained; no real-time guarantee or success-rate improvement claimed."
+}

@@ -108,7 +108,7 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         if onset:first_contact=t
         if hand_controller is not None:
             # 已解出的真实接触力只影响下一物理步，避免使用未来接触信息。
-            hand_controller.observe(model,data)
+            hand_controller.observe(model,data,velocity=velocity)
         if first_contact is not None and t<first_contact+.1-1e-10:
             normal_load=0.
             for i,c in enumerate(data.contact):

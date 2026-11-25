@@ -22,8 +22,10 @@ from controllers.contact_admittance import ContactAdmittance
 from controllers.contact_closure import ContactClosure
 from controllers.hand import LeapHand
 from controllers.joint_aware_closure import ClosureConfig,JointAwareClosure
+from controllers.friction_hold import FrictionHoldClosure,HoldConfig
 from experiments.buffer_ablation import VARIANTS
 from experiments.finger_closure_ablation import FINGER_VARIANTS
+from experiments.holding_control_ablation import HOLD_VARIANTS
 from experiments.intercept_candidates import scenarios
 from experiments.intercept_tracking import initial
 from experiments.mpc_ball_catch import run_case
@@ -58,6 +60,7 @@ class StateRecorder:
         self.support=ContactClosure(model,LeapHand(model))
         self.loads=np.zeros(5);self.points=np.zeros((MAX_POINTS,3));self.point_count=0
         self.normal=None;self.fraction=0.
+        self.eta=0.;self.slip=0.
         self.time=[];self.qpos=[];self.qvel=[];self.ctrl=[];self.object_pos=[]
         self.diag=[];self.load_history=[];self.point_history=[];self.point_counts=[]
 
@@ -65,7 +68,7 @@ class StateRecorder:
         # 此处接触力来自刚完成的物理步，不能用回放时mj_forward重算的力替代。
         if self.normal is None:self.normal=-data.body("hand/palm_lower").xmat.reshape(3,3)[:,2].copy()
         self.support.observe(model,data)
-        self.loads[:]=0.;self.points[:]=0.;self.point_count=0
+        self.loads[:]=0.;self.points[:]=0.;self.point_count=0;self.eta=0.;self.slip=0.
         self.fraction=0. if close is None else float(np.clip((t-close)/self.duration,0,1))
         for i,c in enumerate(data.contact):
             if self.support.projectile not in (c.geom1,c.geom2) or c.efc_address<0:continue
@@ -76,6 +79,12 @@ class StateRecorder:
             self.loads[group+1]+=max(0.,wrench[0])
             if wrench[0]>=.02 and self.point_count<MAX_POINTS:
                 self.points[self.point_count]=c.pos;self.point_count+=1
+            if wrench[0]>=.02:
+                self.eta=max(self.eta,float(np.linalg.norm(wrench[1:3]/c.friction[:2])/wrench[0]))
+                jo,jh=np.empty((3,model.nv)),np.empty((3,model.nv))
+                mujoco.mj_jac(model,data,jo,None,c.pos,model.body("projectile").id)
+                mujoco.mj_jac(model,data,jh,None,c.pos,model.geom_bodyid[other])
+                self.slip=max(self.slip,float(np.linalg.norm(c.frame.reshape(3,3)[1:]@((jo-jh)@velocity))))
 
     def frame(self,model,data,info):
         first=info["first_contact_s"]
@@ -84,7 +93,7 @@ class StateRecorder:
         self.ctrl.append(data.ctrl.copy());self.object_pos.append(data.body("projectile").xpos.copy())
         self.diag.append([ -1. if first is None else 1000.*(data.time-first),self.fraction,
             float(self.loads.sum()),int(self.support.holding),int(info["finger_contact"]),int(info["floor"]),
-            info["drift_mm"],normal_speed,info["plans_applied"]])
+            info["drift_mm"],normal_speed,info["plans_applied"],self.eta,1000.*self.slip])
         self.load_history.append(self.loads.copy());self.point_history.append(self.points.copy());self.point_counts.append(self.point_count)
 
     def arrays(self):
@@ -112,7 +121,14 @@ def make_clip(model,args,name,signature):
     if selection is None:raise ValueError("Scenario must be an existing index 0-19")
     case,kind,p,v=selection
     hand_factory=None;buffered=False;duration=.14
-    if args.experiment=="finger":
+    if args.experiment=="holding":
+        mode=next(x[1] for x in HOLD_VARIANTS if x[0]==name)
+        config=HoldConfig()
+        if schedule is not None:
+            prior=next(r for r in read_csv(args.results_dir/"trials.csv") if int(r["seed"])==args.seed and int(r["scenario"])==case and r["strategy"]==name)
+            config=HoldConfig(**{key:float(prior[key]) for key in HoldConfig.__dataclass_fields__})
+        hand_factory=(lambda m,h:JointAwareClosure(m,h,"compliant")) if mode is None else (lambda m,h:FrictionHoldClosure(m,h,mode,config))
+    elif args.experiment=="finger":
         mode=next(x[1] for x in FINGER_VARIANTS if x[0]==name)
         config=ClosureConfig()
         if schedule is not None:
@@ -235,17 +251,17 @@ def play(model,args,clips,metas,focus):
                 dofs=[model.joint(f"joint{i}").dofadr[0] for i in range(1,8)]
                 step_accel=float(max(abs((clip["qvel"][index,dofs]-clip["qvel"][index-1,dofs])/
                                         (clip["time"][index]-clip["time"][index-1]))))
-            closure_label="Other joints closure" if args.experiment=="finger" else "Closure command"
-            labels=f"Strategy\nSeed / case\nPlayback\nTime / contact age\nPhase\n{closure_label}\nOpposed support*\nSum normal load*\nOutward ball speed\nActual joint accel\nHold drift\nTrial result\nConstraint-qualified"
+            closure_label="Other joints closure" if args.experiment in ("finger","holding") else "Closure command"
+            labels=f"Strategy\nSeed / case\nPlayback\nTime / contact age\nPhase\n{closure_label}\nOpposed support*\nSum normal load*\nFriction utilization*\nContact slip*\nOutward ball speed\nActual joint accel\nHold drift\nTrial result\nConstraint-qualified"
             values=(f'{meta["strategy"]}\n{args.seed} / {args.scenario}\n'
                 f'{"PAUSED" if paused else "Playing"} {speed:.2f}x\n{clip["time"][index]:.3f} s / '
                 f'{"--" if contact_ms<0 else f"{contact_ms:.0f} ms"}\n{phase}\n{100.*diag[1]:.0f}%\n'
-                f'{"YES" if diag[3] else "No"}\n{diag[2]:.1f} N\n{diag[7]:+.3f} m/s\n{step_accel:.2f} rad/s2\n'
+                f'{"YES" if diag[3] else "No"}\n{diag[2]:.1f} N\n{diag[9]:.3f}\n{diag[10]:.2f} mm/s\n{diag[7]:+.3f} m/s\n{step_accel:.2f} rad/s2\n'
                 f'{"--" if contact_ms<300 else f"{diag[6]:.1f} mm"}\n'
                 f'{"HELD 2 s" if outcome["held"] else "NOT HELD"}\n{"YES" if outcome["qualified"] else "No"}')
-            instructions="Space: pause   [ / ]: one physics step\nN / P or 1-4: strategy   R: restart\nC: jump near contact   T: camera\n- / =: playback speed\nOrange: ball trail   Green: loaded contacts*\n*Contact loads/support: previous 2 ms physics step\nRecorded physics replay; mouse drag does not change outcome"
+            instructions=f"Space: pause   [ / ]: one physics step\nN / P or 1-{len(clips)}: strategy   R: restart\nC: jump near contact   T: camera\n- / =: playback speed\nOrange: ball trail   Green: loaded contacts*\n*Contact measurements: previous 2 ms physics step\nRecorded physics replay; mouse drag does not change outcome"
             load_text="\n".join(f"{label}: {value:.2f} N" for label,value in zip(LABELS,clip["loads"][index]))
-            if args.experiment=="finger":
+            if args.experiment in ("finger","holding"):
                 load_text+="\n\nMiddle joints: angle / speed"
                 for label,joint in zip(("F1","F2","F3","Thumb"),(2,6,10,14)):
                     j=model.joint(f"hand/{joint}")
@@ -270,8 +286,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed",type=int,default=805)
     parser.add_argument("--scenario",type=int,default=0)
-    parser.add_argument("--experiment",choices=["buffer","finger"],default="buffer")
-    parser.add_argument("--strategy",choices=["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS],default="compare")
+    parser.add_argument("--experiment",choices=["buffer","finger","holding"],default="buffer")
+    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS])),default="compare")
     parser.add_argument("--speed",type=float,default=.25)
     parser.add_argument("--paused",action="store_true")
     parser.add_argument("--loop",action="store_true")
@@ -282,12 +298,14 @@ def main():
     parser.add_argument("--snapshot",type=Path,help="Save an offscreen contact-stage PNG instead of opening a window")
     parser.add_argument("--smoke-seconds",type=float,help=argparse.SUPPRESS)
     args=parser.parse_args()
-    if args.results_dir is None:args.results_dir=ROOT/"results/finger_closure_validation" if args.experiment=="finger" else DEFAULT_RESULTS
-    if args.cache_dir is None:args.cache_dir=ROOT/"results/finger_replays" if args.experiment=="finger" else ROOT/"results/interactive_replays"
+    result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation")
+    replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays")
+    if args.results_dir is None:args.results_dir=ROOT/"results"/result_folders[args.experiment]
+    if args.cache_dir is None:args.cache_dir=ROOT/"results"/replay_folders[args.experiment]
     if not np.isfinite(args.speed) or args.speed<=0:parser.error("Speed must be positive")
     if not 0<=args.scenario<20:parser.error("Scenario must be between 0 and 19")
-    variants=FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
-    allowed_seeds=(805,806) if args.experiment=="finger" else (803,805)
+    variants=HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
+    allowed_seeds=(806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
     if args.strategy=="compare" and args.seed not in allowed_seeds:
         parser.error(f"Recorded paired comparison supports seeds {allowed_seeds}. For a new launch choose one --strategy explicitly.")
     if args.strategy!="compare" and args.strategy not in [x[0] for x in variants]:parser.error("Strategy does not belong to this experiment")

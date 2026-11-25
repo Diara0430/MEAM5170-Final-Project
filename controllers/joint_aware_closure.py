@@ -89,7 +89,7 @@ class JointAwareClosure:
         self.shape_velocity[self.middle]=angle*6.*fraction*(1.-fraction)/c.preshape_duration
         data.ctrl[self.hand.ids]=np.clip(self.shape,self.hand.limits[:,0],self.hand.limits[:,1])
 
-    def observe(self,model,data):
+    def observe(self,model,data,velocity=None):
         self.support.observe(model,data);self.loads[:]=0.
         for i,contact in enumerate(data.contact):
             if self.support.projectile not in (contact.geom1,contact.geom2) or contact.efc_address<0:continue

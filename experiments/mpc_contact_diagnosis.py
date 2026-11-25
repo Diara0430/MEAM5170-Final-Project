@@ -38,7 +38,7 @@ def longest_absence(rows,key,dt):
 
 
 class ContactRecord:
-    def __init__(self,model,scenario,mode,seed=801,recorded=True):
+    def __init__(self,model,scenario,mode,seed=801,recorded=True,point_window_ms=300.):
         self.tags=dict(seed=seed,scenario=scenario,mode=mode,decision_source="recorded" if recorded else "measured")
         self.hand=LeapHand(model)
         self.closure=ContactClosure(model,self.hand)
@@ -47,6 +47,7 @@ class ContactRecord:
         self.incoming=None
         self.impulse=np.zeros(3)
         self.angular_impulse=np.zeros(3)
+        self.point_window_ms=point_window_ms
 
     def observe(self,model,data,t,first,close,velocity,reference):
         elapsed=round((t-first)*1000,6)
@@ -63,7 +64,12 @@ class ContactRecord:
             self.incoming=incoming/max(np.linalg.norm(incoming),1e-12)
         loads=np.zeros(5);geometry=np.zeros(5,dtype=int)
         force=np.zeros(3);moment=np.zeros(3)
-        max_slip=0.;near_slide_load=0.
+        max_slip=0.;near_slide_load=0.;eta_max=eta_weighted=0.;rolling_load=0.
+        angular_object,angular_palm=np.empty((3,model.nv)),np.empty((3,model.nv))
+        mujoco.mj_jac(model,data,None,angular_object,object_body.xipos,object_body.id)
+        mujoco.mj_jac(model,data,None,angular_palm,object_body.xipos,palm.id)
+        omega_object=angular_object@velocity
+        omega_relative=(angular_object-angular_palm)@velocity
         current=[]
         self.closure.observe(model,data)
         for i,c in enumerate(data.contact):
@@ -87,20 +93,27 @@ class ContactRecord:
             mujoco.mj_jac(model,data,jo,None,c.pos,object_body.id)
             mujoco.mj_jac(model,data,jh,None,c.pos,model.geom_bodyid[other])
             slip=float(np.linalg.norm(c.frame.reshape(3,3)[1:]@((jo-jh)@velocity)))
+            rotational_speed=float(np.linalg.norm(c.frame.reshape(3,3)[1:]@np.cross(omega_object,c.pos-object_body.xipos)))
+            if rotational_speed>=.010 and slip<=.005:rolling_load+=wrench[0]
             if c.dim!=3 or min(c.friction[:2])<=0:
                 raise ValueError("Expected 3D sliding friction contacts")
             eta=float(np.linalg.norm(wrench[1:3]/c.friction[:2])/wrench[0])
+            eta_max=max(eta_max,eta);eta_weighted+=eta*wrench[0]
             max_slip=max(max_slip,slip)
             if eta>=.9 and slip>=.020:near_slide_load+=wrench[0]
             local=rotation.T@(c.pos-palm.xpos)
             current.append(dict(**self.tags,contact_ms=elapsed,part=PARTS[j],body=model.body(model.geom_bodyid[other]).name,
                 normal_N=wrench[0],tangent_N=float(np.linalg.norm(wrench[1:3])),utilization=eta,
+                mu1=c.friction[0],mu2=c.friction[1],
+                rotational_surface_speed_mm_s=1000.*rotational_speed,
                 slip_mm_s=1000*slip,palm_x_mm=1000*local[0],palm_y_mm=1000*local[1],palm_z_mm=1000*local[2]))
-        if elapsed<300.-1e-8:self.points.extend(current)
+        if self.point_window_ms is None or elapsed<self.point_window_ms-1e-8:self.points.extend(current)
         self.impulse+=model.opt.timestep*force
         self.angular_impulse+=model.opt.timestep*moment
         dof=model.joint("flight").dofadr[0]
         object_velocity=velocity[dof:dof+3]
+        acceleration=(data.qvel[dof:dof+3]-object_velocity)/model.opt.timestep
+        balance=force+model.body_mass[object_body.id]*model.opt.gravity-model.body_mass[object_body.id]*acceleration
         jo,jp=np.empty((3,model.nv)),np.empty((3,model.nv))
         mujoco.mj_jac(model,data,jo,None,object_body.xpos,object_body.id)
         mujoco.mj_jac(model,data,jp,None,object_body.xpos,palm.id)
@@ -116,6 +129,11 @@ class ContactRecord:
             palm_rotation_deg=turn,relative_motion_mm=1000*np.linalg.norm(relative-self.relative_origin),
             object_palm_x_mm=1000*relative[0],object_palm_y_mm=1000*relative[1],object_palm_z_mm=1000*relative[2],
             max_slip_mm_s=1000*max_slip,near_sliding_load_N=near_slide_load,
+            friction_utilization_max=eta_max,friction_utilization_weighted=eta_weighted/max(float(loads.sum()),1e-12),
+            rolling_proxy_load_N=rolling_load,relative_angular_speed_rad_s=float(np.linalg.norm(omega_relative)),
+            hand_force_balance_error_N=float(np.linalg.norm(balance)),
+            **{f"net_hand_force_{a}_N":float(force[i]) for i,a in enumerate("xyz")},
+            **{f"net_hand_moment_{a}_Nm":float(moment[i]) for i,a in enumerate("xyz")},
             object_normal_velocity_m_s=float(object_velocity@(-self.rotation_origin[:,2])),
             object_along_incoming_velocity_m_s=float(object_velocity@self.incoming),
             relative_vx_mm_s=1000*relative_velocity[0],relative_vy_mm_s=1000*relative_velocity[1],relative_vz_mm_s=1000*relative_velocity[2],
