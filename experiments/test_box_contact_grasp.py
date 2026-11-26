@@ -18,6 +18,17 @@ class ContactGraspTests(unittest.TestCase):
     def setup_hand(self, policy):
         return ContactGrasp(self.model, LeapHand(self.model), policy), initial(self.model)
 
+    def test_preshape_enters_the_existing_closing_reference(self):
+        model = self.model
+        for delta in (-.12, .12):
+            hand = ContactGrasp(model, LeapHand(model), "original", middle_ring_delta=delta)
+            data = initial(model)
+            hand.prepare(model, data, .98, 1.)
+            np.testing.assert_allclose(hand.shape[[6,10]], .30+delta)
+            np.testing.assert_allclose(hand.shape[2], .30)
+            hand.command(model, data, 0.)
+            np.testing.assert_allclose(hand.close_start[1:3], .30+delta)
+
     @patch.object(SphereCageClosure, "command")
     def test_one_side_yields_and_opposition_releases(self, unused):
         hand, data = self.setup_hand("tactile")

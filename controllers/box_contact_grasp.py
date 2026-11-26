@@ -5,9 +5,13 @@ from controllers.sphere_cage import SphereCageClosure
 
 
 class ContactGrasp(SphereCageClosure):
-    def __init__(self, model, hand, policy, *, shadow=False):
+    def __init__(self, model, hand, policy, *, shadow=False, middle_ring_delta=0.):
         super().__init__(model, hand)
-        if policy not in ("tactile", "lead", "lead_tactile", "recapture"):
+        if middle_ring_delta not in (-.12, 0., .12):
+            raise ValueError("Invalid middle/ring preshape offset")
+        self.middle_ring_delta = middle_ring_delta
+        self.bent_steps = 0
+        if policy not in ("original", "tactile", "lead", "lead_tactile", "recapture"):
             raise ValueError("Unknown contact policy")
         self.shadow = shadow
         self.delivered_steps = 0
@@ -46,6 +50,19 @@ class ContactGrasp(SphereCageClosure):
 
     def prepare(self, model, data, now, nominal):
         super().prepare(model, data, now, nominal)
+        if self.middle_ring_delta:
+            c = self.config
+            phase = float(np.clip((now-nominal+c.preshape_lead)/c.preshape_duration,0.,1.))
+            amount = self.middle_ring_delta*phase**2*(3.-2.*phase)
+            if phase > 0:
+                self.bent_steps += 1
+                if not self.shadow:
+                    indices = [6,10]
+                    self.shape[indices] += amount
+                    self.shape_velocity[indices] += self.middle_ring_delta*6.*phase*(1.-phase)/c.preshape_duration
+                    ids = np.asarray(self.hand.ids)[indices]
+                    data.ctrl[ids] = np.clip(self.shape[indices],
+                                             self.hand.limits[indices,0],self.hand.limits[indices,1])
         if not self.lead:
             return
         # The crossing time comes from the delivered camera fits. Smooth out updates
@@ -79,5 +96,6 @@ class ContactGrasp(SphereCageClosure):
             self.after_frames += int(self._apply(data))
 
     def diagnostics(self):
-        return dict(hand_changes_applied=self.delivered_steps, lead_steps=self.before_frames, tactile_steps=self.after_frames,
+        return dict(preshape_applied=0 if self.shadow else self.bent_steps,
+                    hand_changes_applied=self.delivered_steps, lead_steps=self.before_frames, tactile_steps=self.after_frames,
                     recapture_steps=self.recapture_frames, yielding_steps=self.yield_frames, max_flex_torque_delta_Nm=self.max_torque_change)
