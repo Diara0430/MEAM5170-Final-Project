@@ -14,11 +14,14 @@ def dot(scene, xyz, radius, color):
     geom = scene.geoms[scene.ngeom]
     mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_SPHERE,
                         np.full(3, radius), np.asarray(xyz), np.eye(3).ravel(), np.array(color))
+    geom.emission = .92
     scene.ngeom += 1
 
 
 def render(sample, output):
     model = build_scene("ball")
+    model.vis.headlight.ambient[:] = [.63, .63, .63]
+    model.vis.headlight.diffuse[:] = [.70, .70, .70]
     data = mujoco.MjData(model)
     frames = sample["path"]
     ball = np.array([f["ball"] for f in frames])
@@ -30,12 +33,18 @@ def render(sample, output):
     heading = ball[0, :2] - hand[0, :2]
     camera.azimuth = np.rad2deg(np.arctan2(heading[1], heading[0])) + 90
     camera.distance = max(2.1, 1.62*np.ptp(positions[:, 2]), 1.2*np.linalg.norm(heading))
+    detail = mujoco.MjvCamera()
+    detail.lookat[:] = hand[0]
+    detail.azimuth, detail.elevation, detail.distance = camera.azimuth + 23, -18, .55
     touch = sample["contact"]
     pictures, durations, history = [], [], {}
     try:
         font = ImageFont.truetype("DejaVuSans.ttf", 15)
     except OSError:
-        font = ImageFont.load_default()
+        try:
+            font = ImageFont.truetype("arial.ttf", 15)
+        except OSError:
+            font = ImageFont.load_default()
     with mujoco.Renderer(model, height=360, width=640) as renderer:
         for index, frame in enumerate(frames):
             now = frame["time_s"]
@@ -61,9 +70,17 @@ def render(sample, output):
             if frame["intercept"] is not None:
                 dot(renderer.scene, frame["intercept"], .021, [.92, .2, .64, .82])
             dot(renderer.scene, frame["hand"], .013, [.16, .90, .47, 1.])
-            canvas = Image.new("RGB", (640, 424), "#172937")
-            canvas.paste(Image.fromarray(renderer.render()), (0, 32))
+            overview = Image.fromarray(renderer.render()).crop((100, 0, 540, 360))
+            renderer.update_scene(data, camera=detail)
+            if frame["intercept"] is not None:
+                dot(renderer.scene, frame["intercept"], .010, [.92, .2, .64, .87])
+            dot(renderer.scene, frame["hand"], .007, [.16, .90, .47, 1.])
+            inset = Image.fromarray(renderer.render()).crop((190, 44, 450, 344))
+            canvas = Image.new("RGB", (708, 424), "#172937")
+            canvas.paste(overview, (0, 32))
+            canvas.paste(inset, (446, 92))
             draw = ImageDraw.Draw(canvas)
+            draw.text((454, 62), "Palm close-up", fill="white", font=font)
             if touch is not None and now >= touch:
                 phase = "Hand contact"
                 if now > touch + .30:
@@ -79,7 +96,7 @@ def render(sample, output):
                                     (269, "Selected point", "#f864bc"), (449, "Palm center", "#45e98a")]:
                 draw.ellipse((x,405,x+8,413), fill=color)
                 draw.text((x+15,399), label, fill="white", font=font)
-            pictures.append(canvas)
+            pictures.append(canvas.quantize(colors=128, dither=Image.Dither.NONE))
             gap = frames[index+1]["time_s"] - now if index+1 < len(frames) else .50
             durations.append(max(20, round(2000*gap)))  # half-speed replay
     pictures[0].save(output, save_all=True, append_images=pictures[1:], duration=durations,

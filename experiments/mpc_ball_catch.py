@@ -230,7 +230,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
                 floor=bool(floor in touching),finger_contact=bool(touching&fingers),plans_applied=applied,
                 applied_reference=last_applied))
         if grounded:break
-    held=accepted and first_contact is not None and not grounded and continuous and drift<=.025
+    physically_held = first_contact is not None and not grounded and continuous and drift <= .025
+    held = accepted and physically_held
     qualified=held and peak_speed<=1. and peak_accel<=4. and margin>=0 and force_fraction<=1.000001
     diagnostics = {}
     if approach is not None:
@@ -240,7 +241,7 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             last_predicted_speed=None if last_applied is None else last_applied.incoming_speed,
             measured_fraction=measured_fraction, actual_tilt_deg=actual_tilt, contact_ball_speed=contact_ball_speed)
     if observer is not None:
-        diagnostics.update(first_application_s=first_application_time,
+        diagnostics.update(physical_hold=int(physically_held), first_application_s=first_application_time,
             first_selected_s=None if first_applied is None else first_applied.intercept_time,
             first_planned_height_offset_m=None if first_applied is None else first_applied.point[2] - home_height)
     return dict(**diagnostics,seed=seed,scenario=scenario,kind=kind,mode=mode,accepted=int(accepted),contacted=int(first_contact is not None),
