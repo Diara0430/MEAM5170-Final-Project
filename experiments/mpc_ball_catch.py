@@ -29,7 +29,8 @@ from scene_setup.scene import build_scene
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
              allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None,approach=None,
-             observer=None, height_offsets=(0.,), velocity_selection=None, planner_factory=CatchingMPC):
+             observer=None, height_offsets=(0.,), velocity_selection=None, planner_factory=CatchingMPC,
+             launch_rotation=None):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
     if buffer_factory is not None and follow_through is not None:
@@ -39,6 +40,12 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
     if observer is not None and (mode == "static_predict" or (approach and approach.entry)):
         raise ValueError("Observed trials use tactile closure")
     data=launch(model,p,v)
+    if launch_rotation is not None:
+        quat, angular_velocity = launch_rotation
+        data.joint("flight").qpos[3:] = quat
+        data.joint("flight").qvel[3:] = angular_velocity
+        mujoco.mj_forward(model, data)
+    rotation_track = getattr(observer, "rotation_track", None)
     tracker=ArmReferenceTracker(model) if tracker_factory is None else tracker_factory(model)
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
@@ -100,6 +107,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         control_data = data
         if observer is not None and first_contact is None:
             if camera_tick:
+                if rotation_track is not None:
+                    rotation_track.sample(t, data.joint("flight").qpos[3:])
                 estimate = observer.sample(t, data.joint("flight").qpos[:3])
                 if estimate is not None:
                     crossing = estimate.descending_crossing(home_height)

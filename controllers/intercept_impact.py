@@ -79,6 +79,9 @@ class InterceptImpact:
         flight = d.joint("flight")
         flight.qpos[:] = [*pos,1.,0.,0.,0.]
         flight.qvel[:] = [*velocity,0.,0.,0.]
+        pose = getattr(self.observer, "preview_rotation", None)
+        if pose is not None:
+            pose.write(d, start)
         d.qacc_warmstart[:] = 0
         mujoco.mj_forward(m,d)
         onset = direction = None
