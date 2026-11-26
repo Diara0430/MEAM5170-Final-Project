@@ -1,0 +1,71 @@
+name: Record box replay and collect measured ball impact frames
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['.github/workflows/shape-replay.yml', 'experiments/shape_replay.py']
+permissions:
+  contents: read
+  actions: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+jobs:
+  ball-frames:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 45789537385
+          github-token: ${{ github.token }}
+          pattern: results-*
+          path: archived
+      - name: Combine the original 2 ms records without rerunning physics
+        shell: python
+        run: |
+          import csv
+          from pathlib import Path
+          files = sorted(Path('archived').glob('*/frames.csv'))
+          assert len(files) == 12
+          rows = []
+          for f in files:
+              with f.open(encoding='utf-8-sig') as src:
+                  rows.extend(csv.DictReader(src))
+          rows.sort(key=lambda r: (r['profile'], int(r['seed']), int(r['scenario']), float(r['ms'])))
+          assert len({(r['profile'],r['seed'],r['scenario']) for r in rows}) == 96
+          with open('ball_frames.csv','w',newline='') as dst:
+              w = csv.DictWriter(dst,fieldnames=rows[0].keys())
+              w.writeheader()
+              w.writerows(rows)
+      - run: cat ball_frames.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: measured-ball-frames
+          path: ball_frames.csv
+  box-replay:
+    runs-on: ubuntu-latest
+    env:
+      MUJOCO_GL: egl
+      PYOPENGL_PLATFORM: egl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt pillow
+      - run: python -m unittest experiments.test_box_rotation
+      - run: python -m experiments.shape_replay --seed 1071 --case 0 --profile normal --method pose --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rotating-box-replay
+          path: data/
+      - name: Export replay bytes with digest
+        shell: python
+        run: |
+          import base64, hashlib
+          from pathlib import Path
+          for path in sorted(Path('data').iterdir()):
+              raw = path.read_bytes()
+              print('REPLAY_FILE',path.name,len(raw),hashlib.sha256(raw).hexdigest())
+              encoded = base64.b64encode(raw).decode('ascii')
+              for start in range(0,len(encoded),2048):
+                  print('REPLAY_CHUNK',encoded[start:start+2048])
+              print('REPLAY_END')
