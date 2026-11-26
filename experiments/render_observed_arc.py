@@ -1,5 +1,6 @@
 """Render a recorded MuJoCo rollout with the observations and decision available at each frame."""
 import argparse
+import gzip
 import json
 from pathlib import Path
 
@@ -14,14 +15,14 @@ def dot(scene, xyz, radius, color):
     geom = scene.geoms[scene.ngeom]
     mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_SPHERE,
                         np.full(3, radius), np.asarray(xyz), np.eye(3).ravel(), np.array(color))
-    geom.emission = .92
+    geom.emission = .35
     scene.ngeom += 1
 
 
 def render(sample, output):
     model = build_scene("ball")
-    model.vis.headlight.ambient[:] = [.63, .63, .63]
-    model.vis.headlight.diffuse[:] = [.70, .70, .70]
+    model.vis.headlight.ambient[:] = [.38, .38, .38]
+    model.vis.headlight.diffuse[:] = [.60, .60, .60]
     data = mujoco.MjData(model)
     frames = sample["path"]
     ball = np.array([f["ball"] for f in frames])
@@ -96,9 +97,19 @@ def render(sample, output):
                                     (269, "Selected point", "#f864bc"), (449, "Palm center", "#45e98a")]:
                 draw.ellipse((x,405,x+8,413), fill=color)
                 draw.text((x+15,399), label, fill="white", font=font)
-            pictures.append(canvas.quantize(colors=128, dither=Image.Dither.NONE))
+            pictures.append(canvas)
             gap = frames[index+1]["time_s"] - now if index+1 < len(frames) else .50
             durations.append(max(20, round(2000*gap)))  # half-speed replay
+    # Share one palette so stationary pixels stay identical between GIF frames.
+    swatches = Image.new("RGB", (354, 212*5))
+    for i, frame in enumerate(np.linspace(0, len(pictures)-1, 5, dtype=int)):
+        swatches.paste(pictures[frame].resize((354, 212)), (0, i*212))
+    palette = swatches.quantize(colors=216)
+    colors = palette.getpalette()[:216*3]
+    colors.extend([50,184,255, 246,214,64, 248,100,188, 69,233,138,
+                   230,60,180, 60,230,120, 255,120,20, 32,108,255])
+    palette.putpalette(colors + [0]*(768-len(colors)))
+    pictures = [im.quantize(palette=palette, dither=Image.Dither.NONE) for im in pictures]
     pictures[0].save(output, save_all=True, append_images=pictures[1:], duration=durations,
                      loop=0, optimize=True, disposal=1)
 
@@ -108,4 +119,6 @@ if __name__ == "__main__":
     parser.add_argument("recording", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    render(json.loads(args.recording.read_text(encoding="utf-8")), args.output)
+    opener = gzip.open if args.recording.suffix == ".gz" else open
+    with opener(args.recording, "rt", encoding="utf-8") as source:
+        render(json.load(source), args.output)
