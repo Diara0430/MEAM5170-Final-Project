@@ -80,7 +80,7 @@ class CatchingMPC:
             return np.hstack((.5*t*t*np.eye(7),np.zeros((7,7)))),np.hstack((t*np.eye(7),np.zeros((7,7))))
         return np.hstack((h*(t-.5*h)*np.eye(7),.5*(t-h)**2*np.eye(7))),np.hstack((h*np.eye(7),(t-h)*np.eye(7)))
 
-    def solve(self,data,p,v,now,previous,durations=None):
+    def solve(self,data,p,v,now,previous,durations=None, *, fixed_target=None, speed_request=None):
         start=time.perf_counter()
         m=self.model
         ck=self.checker
@@ -112,6 +112,8 @@ class CatchingMPC:
             flight_time=lag+duration
             point=p+v*flight_time+.5*m.opt.gravity*flight_time**2
             incoming=v+m.opt.gravity*flight_time
+            if fixed_target is not None:
+                point, incoming = fixed_target
             if point[2]<ck.radius+.005 or np.linalg.norm(point)>ck.reach_bound+.002:
                 continue
             if incoming@self.orientation[:,2]<.05 or np.linalg.norm(point-capture0)>.25:
@@ -159,6 +161,12 @@ class CatchingMPC:
             constraint.extend((a_pos,a_rot))
             lower.extend((b_pos-.005,b_rot-.03))
             upper.extend((b_pos+.005,b_rot+.03))
+            if speed_request is not None:
+                projection, requested = speed_request
+                constraint.append((projection @ vmap).reshape(1,-1))
+                center_speed = requested - projection @ v0
+                lower.append(np.array([center_speed-.015]))
+                upper.append(np.array([center_speed+.015]))
             a=np.vstack(constraint);lo=np.concatenate(lower);hi=np.concatenate(upper)
             solver=osqp.OSQP()
             solver.setup(P=sparse.csc_matrix(2*matrix),q=2*linear,A=sparse.csc_matrix(a),l=lo,u=hi,
@@ -193,6 +201,14 @@ class CatchingMPC:
             actual=end.xpos+end.xmat.reshape(3,3)@ck.local_capture
             if np.linalg.norm(actual-point)>.012:
                 continue
+            if speed_request is not None:
+                end_jac = np.empty_like(jp)
+                mujoco.mj_jac(m, probe, end_jac, None, actual, ck.palm)
+                _, endpoint_v, _ = plan.reference(plan.intercept_time)
+                achievable = float((incoming / incoming_speed) @ end_jac[:, ck.dofs] @ endpoint_v)
+                if abs(achievable - requested) > .025:
+                    continue
+                plan.predicted_match = achievable / incoming_speed
             solved+=1
             score=sum(w*float(np.sum((a@x-b)**2)) for a,b,w in weights)+.002*float(x@x)+.1*duration
             if self.velocity_selection is not None:

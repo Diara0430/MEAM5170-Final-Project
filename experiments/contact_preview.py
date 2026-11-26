@@ -19,8 +19,8 @@ from scene_setup.scene import build_scene
 
 
 def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter,
-          planner_factory=CatchingMPC, record_frame=None):
-    observer = BallObserver(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
+          planner_factory=CatchingMPC, record_frame=None, observer_factory=BallObserver):
+    observer = observer_factory(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
     tracker = tracker_factory(model, observer, preview)
     impact = ImpactMeasurement(model)
     peak_20 = 0.
