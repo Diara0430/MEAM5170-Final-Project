@@ -17,6 +17,8 @@ class PalmAimRecovery(TimingMPC):
 
     def on_applied(self, plan, now):
         super().on_applied(plan, now)
+        if self.contact_selector is not None:
+            self.contact_selector.applied(plan)
         if self.pending_aim is None or self.pending_aim[0] is not plan:
             return
         if self.pending_aim[1]:
