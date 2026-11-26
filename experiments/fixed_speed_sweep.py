@@ -69,10 +69,13 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--selection", type=Path, nargs="+")
     parser.add_argument("--stress", action="store_true")
+    parser.add_argument("--wide-mid", action="store_true", help="Use the frozen 0.15 m/s certified-span rule")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     winner = select(args.selection) if args.selection else None
-    if args.stress and winner is None:
+    if args.wide_mid and winner is not None:
+        parser.error("Choose a single source of the routing rule")
+    if args.stress and winner is None and not args.wide_mid:
         parser.error("Stress testing requires a rule chosen on the development throws")
     observer = partial(BallObserver, noise_m=.004, latency_s=.040) if args.stress else BallObserver
     model = build_scene("ball")
@@ -88,7 +91,11 @@ def main():
         speed = float(np.linalg.norm(f.incoming)) if f.time is not None else None
         selected = route(winner, speed) if winner else None
         policies = list(("free30", *LABELS))
-        if args.stress:
+        if args.wide_mid:
+            wide = f.reason == "ready" and f.levels[-1]-f.levels[0] >= .15
+            selected = "mid" if wide else "locked30"
+            policies = list(dict.fromkeys(("free30", "locked30", selected)))
+        elif args.stress:
             policies = list(dict.fromkeys(("free30", "locked30", selected)))
         shift = case % len(policies)
         for name in policies[shift:] + policies[:shift]:
@@ -108,7 +115,7 @@ def main():
             result = trial(model, args.seed, case, p, v, True, tracker_factory=TRACKER, planner_factory=factory,
                            record_frame=frame, observer_factory=observer)
             measured = result["measured_fraction"]
-            result.update(policy=name, selected_rule=winner or "", routed_label=selected or "",
+            result.update(policy=name, selected_rule="wide_mid" if args.wide_mid else winner or "", routed_label=selected or "",
                     stress=int(args.stress), fixture_status=f.reason, observed_s=f.observed_s, release_s=f.release_s,
                     fixed_time=f.time, **{f"fixed_{axis}": None if f.point is None else f.point[i]
                                          for i,axis in enumerate("xyz")},
