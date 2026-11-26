@@ -86,7 +86,7 @@ def main():
             flight=evaluate(model,center[2],seed,case,p,v,args.profile)
             rows.extend(flight)
             for name in ADAPTIVE:
-                first_ok=next((r for r in flight if r[name] and r["lead_s"]>=.12),None)
+                first_ok=next((r for r in flight if r[name] and r["target_s"]-r["frame_s"]>=.12),None)
                 if first_ok is not None:
                     first.append(dict(rule=name,**first_ok))
     summary=[]
