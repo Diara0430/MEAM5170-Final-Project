@@ -1,0 +1,28 @@
+name: Evaluate offset recovery for wide rolling catches
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/palm_aim.py', 'experiments/rolling_reach.py', '.github/workflows/rolling-reach.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [normal, noisy]
+        seed: [991, 992, 993, 994, 995]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.rolling_reach --seed ${{ matrix.seed }} --profile ${{ matrix.profile }} --core track_reserve --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rolling-reach-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data
+      - run: cat data/trials.csv
