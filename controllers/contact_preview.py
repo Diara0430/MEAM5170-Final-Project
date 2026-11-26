@@ -18,6 +18,7 @@ class ContactPreviewFilter(DiscreteArmFilter):
         self.touched = False
         self.near_times_ms = []
         self.near_steps = 0
+        self.last_near_t = None
 
     def command(self, data, plan, t):
         start = time.perf_counter()
@@ -27,10 +28,12 @@ class ContactPreviewFilter(DiscreteArmFilter):
         p, v = estimate.at(t)
         palm = data.body(self.palm)
         to_ball = p - (palm.xpos + palm.xmat.reshape(3, 3) @ self.offset)
-        near = to_ball @ to_ball <= .10**2 and to_ball @ v < 0.
+        # Keep the preview active as the ball passes the virtual center and enters the fingers.
+        near = to_ball @ to_ball <= .10**2 and v @ palm.xmat.reshape(3, 3)[:, 2] > 0.
         if not near:
             return super().command(data, plan, t)
         self.near_steps += 1
+        self.last_near_t = t
         if self.enabled:
             # The incoming data is the robot-only pre-contact view. The simulated
             # projectile is reconstructed from the sensor fit in this private copy.

@@ -17,13 +17,22 @@ from experiments.velocity_selection import ImpactMeasurement
 from scene_setup.scene import build_scene
 
 
-def trial(model, center, seed, case, p, v, preview):
+def trial(model, seed, case, p, v, preview):
     observer = BallObserver(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
     tracker = ContactPreviewFilter(model, observer, preview)
     impact = ImpactMeasurement(model)
     peak_20 = 0.
     capture_error = None
     precursor_ms = None
+    previous_arm_v = None
+    peak_flight = 0.
+    def flight(model, data, info):
+        nonlocal previous_arm_v, peak_flight
+        state = data.qvel[tracker.dofs].copy()
+        if previous_arm_v is not None and info["first_contact_s"] is None:
+            peak_flight = max(peak_flight, float(np.max(np.abs(state-previous_arm_v))) / model.opt.timestep)
+        previous_arm_v = state
+
     def touch(model, data, t, contact, close, previous, ref):
         nonlocal peak_20, capture_error, precursor_ms
         if not tracker.touched:
@@ -32,7 +41,8 @@ def trial(model, center, seed, case, p, v, preview):
                 predicted, _ = estimate.at(t + model.opt.timestep)
                 # This post-step residual is diagnostic; the controller receives only the tactile flag.
                 capture_error = 1000*float(np.linalg.norm(predicted-data.joint("flight").qpos[:3]))
-            precursor_ms = tracker.near_times_ms[-1] if tracker.near_times_ms else None
+            if tracker.last_near_t is not None and abs(tracker.last_near_t - t) < 1e-9:
+                precursor_ms = tracker.near_times_ms[-1]
         tracker.touched = True
         impact(model, data, t, contact, close, previous, ref)
         if t < contact + .020 - 1e-9:
@@ -42,13 +52,14 @@ def trial(model, center, seed, case, p, v, preview):
     result, _, _ = run_case(model, p, v, case, "long_arc", seed, "mpc_match",
         tracker_factory=lambda m: tracker, hand_controller_factory=SphereCageClosure,
         mpc_acceleration_limit=3., follow_through=FollowThrough(), approach=CatchApproach(fraction=.30),
-        observer=observer, height_offsets=STRATEGIES["seven_heights"], step_observer=touch)
+        observer=observer, height_offsets=STRATEGIES["seven_heights"], step_observer=touch, frame_observer=flight)
     times = tracker.near_times_ms
     result.update(policy="projected_contact" if preview else "robot_only",
                   peak_contact20_accel=peak_20 if tracker.touched else None,
                   impulse20_Ns=impact.impulse if tracker.touched else None,
                   impact20_peak_N=impact.peak_force if tracker.touched else None,
-                  near_steps=tracker.near_steps,
+                  near_steps=tracker.near_steps, onset_in_preview_region=int(precursor_ms is not None),
+                  peak_flight_accel=peak_flight,
                   near_overruns=sum(t>1000*model.opt.timestep for t in times),
                   near_p95_ms=float(np.percentile(times, 95)) if times else None,
                   last_near_step_ms=precursor_ms, onset_poststep_error_mm=capture_error)
@@ -66,7 +77,7 @@ if __name__ == "__main__":
     rows = []
     for case, p, v, duration, distance, offset in throws(center, model.opt.gravity, args.seed):
         for enabled in ((False, True) if case % 2 == 0 else (True, False)):
-            row = trial(model, center, args.seed, case, p, v, enabled)
+            row = trial(model, args.seed, case, p, v, enabled)
             rows.append(row)
             print(args.seed, case, enabled, row["held"], row["qualified"], flush=True)
     save_csv(args.output_dir/"trials.csv", rows)
