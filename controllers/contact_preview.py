@@ -20,18 +20,21 @@ class ContactPreviewFilter(DiscreteArmFilter):
         self.near_steps = 0
         self.last_near_t = None
 
+    def apply_filter(self, data, plan, t):
+        super().command(data, plan, t)
+
     def command(self, data, plan, t):
         start = time.perf_counter()
         estimate = self.observer.estimate
         if self.touched or estimate is None:
-            return super().command(data, plan, t)
+            return self.apply_filter(data, plan, t)
         p, v = estimate.at(t)
         palm = data.body(self.palm)
         to_ball = p - (palm.xpos + palm.xmat.reshape(3, 3) @ self.offset)
         # Keep the preview active as the ball passes the virtual center and enters the fingers.
         near = to_ball @ to_ball <= .10**2 and v @ palm.xmat.reshape(3, 3)[:, 2] > 0.
         if not near:
-            return super().command(data, plan, t)
+            return self.apply_filter(data, plan, t)
         self.near_steps += 1
         self.last_near_t = t
         if self.enabled:
@@ -42,8 +45,8 @@ class ContactPreviewFilter(DiscreteArmFilter):
             view.joint("flight").qpos[:3] = p
             view.joint("flight").qvel[:3] = v
             mujoco.mj_forward(self.model, view)
-            super().command(view, plan, t)
+            self.apply_filter(view, plan, t)
             data.ctrl[self.ids] = view.ctrl[self.ids]
         else:
-            super().command(data, plan, t)
+            self.apply_filter(data, plan, t)
         self.near_times_ms.append(1000*(time.perf_counter()-start))

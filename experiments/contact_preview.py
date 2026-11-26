@@ -17,9 +17,9 @@ from experiments.velocity_selection import ImpactMeasurement
 from scene_setup.scene import build_scene
 
 
-def trial(model, seed, case, p, v, preview):
+def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter):
     observer = BallObserver(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
-    tracker = ContactPreviewFilter(model, observer, preview)
+    tracker = tracker_factory(model, observer, preview)
     impact = ImpactMeasurement(model)
     peak_20 = 0.
     capture_error = None
@@ -43,6 +43,8 @@ def trial(model, seed, case, p, v, preview):
                 capture_error = 1000*float(np.linalg.norm(predicted-data.joint("flight").qpos[:3]))
             if tracker.last_near_t is not None and abs(tracker.last_near_t - t) < 1e-9:
                 precursor_ms = tracker.near_times_ms[-1]
+        if not tracker.touched and hasattr(tracker, "deadline_misses"):
+            tracker.onset_missed = int(tracker.last_missed)
         tracker.touched = True
         impact(model, data, t, contact, close, previous, ref)
         if t < contact + .020 - 1e-9:
@@ -63,6 +65,9 @@ def trial(model, seed, case, p, v, preview):
                   near_overruns=sum(t>1000*model.opt.timestep for t in times),
                   near_p95_ms=float(np.percentile(times, 95)) if times else None,
                   last_near_step_ms=precursor_ms, onset_poststep_error_mm=capture_error)
+    if hasattr(tracker, "deadline_misses"):
+        result.update(deadline_misses=tracker.deadline_misses, command_count=tracker.command_count,
+                      onset_deadline_missed=tracker.onset_missed)
     return result
 
 
