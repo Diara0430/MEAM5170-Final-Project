@@ -49,7 +49,7 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
@@ -58,6 +58,7 @@ class CatchingMPC:
         self.checker=InterceptPlanner(model,data)
         self.match=velocity_match
         self.acceleration_limit=acceleration_limit
+        self.follow_through=follow_through
         self.orientation=data.body(self.checker.palm).xmat.reshape(3,3).copy()
         self.ids=[model.actuator(f"act{i}").id for i in range(1,8)]
         self.force_limits=model.actuator_forcerange[self.ids]
@@ -142,6 +143,10 @@ class CatchingMPC:
             if max(np.max(lo-a@x),np.max(a@x-hi))>2e-4:
                 continue
             plan=AccelerationReference(now+lag,now+lag+duration,point,self.orientation.copy(),q0,v0,x[:7],x[7:])
+            if self.follow_through is not None:
+                end_q, end_v, _ = plan.reference(plan.intercept_time)
+                if not self.follow_through.fits(end_q, end_v, ck.lower, ck.upper):
+                    continue
             probe=mujoco.MjData(m);probe.qpos[:]=data.qpos
             valid=True
             # 五点非线性运动学复核，不把线性化终点误差当作实际位置误差。

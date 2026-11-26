@@ -26,15 +26,17 @@ from scene_setup.scene import build_scene
 
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
-             allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.):
+             allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
+    if buffer_factory is not None and follow_through is not None:
+        raise ValueError("Choose one post-contact reference generator")
     data=launch(model,p,v)
     tracker=ArmReferenceTracker(model) if tracker_factory is None else tracker_factory(model)
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
-    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit)
+    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through)
     reference=hold_plan(model,data)
     roots=np.roots([.5*model.opt.gravity[2],v[2],p[2]-
         (data.body("hand/palm_lower").xpos+data.body("hand/palm_lower").xmat.reshape(3,3)@mpc.checker.local_capture)[2]])
@@ -61,16 +63,27 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
     if frame_observer is not None:
         frame_observer(model,data,dict(first_contact_s=None,close_s=None,drift_mm=0.,
             floor=False,finger_contact=False,plans_applied=0))
+    stop_fallbacks = 0
+    def stop_reference(t):
+        nonlocal stop_fallbacks
+        if follow_through is not None:
+            q = data.qpos[tracker.qadr].copy()
+            v = data.qvel[tracker.dofs].copy()
+            if follow_through.fits(q, v, mpc.checker.lower, mpc.checker.upper):
+                return follow_through.reference_from_state(t, q, v)
+            stop_fallbacks += 1
+        return braking_reference(model, data, t)
+
     while data.time<(first_contact if first_contact is not None else nominal)+2.3-dt/2:
         t=float(data.time)
         if active:
             if first_contact is not None and (not braking or (buffer_factory is not None and not buffering_started)):
-                reference=(braking_reference(model,data,t) if buffer_factory is None else
+                reference=(stop_reference(t) if buffer_factory is None else
                            buffer_factory(model,data,t,velocity))
                 pending=None;braking=True
                 buffering_started=buffer_factory is not None
             if not braking and isinstance(reference,AccelerationReference) and t>=reference.intercept_time-1e-10:
-                reference=braking_reference(model,data,t);pending=None;braking=True
+                reference=stop_reference(t);pending=None;braking=True
             if pending is not None and t>=pending.observation_time-1e-10:
                 reference=pending;pending=None;accepted=True;applied+=1
             if not braking and first_contact is None and t<nominal+.25 and round(t/dt)%tick==0:
@@ -157,7 +170,7 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         held=int(held),qualified=int(qualified),first_contact_s=first_contact,close_s=close,
         first_normal_relative_speed_m_s=normal_speed,peak_normal_first100ms_N=peak_force,normal_impulse_first100ms_Ns=impulse,
         drift_mm=1000*drift,peak_speed=peak_speed,peak_accel=peak_accel,force_fraction=force_fraction,
-        joint_margin_rad=margin,qp_calls=len(solves),qp_overruns=overrun,plans_applied=applied),solves,trace
+        joint_margin_rad=margin,stop_fallbacks=stop_fallbacks,qp_calls=len(solves),qp_overruns=overrun,plans_applied=applied),solves,trace
 
 
 def summarize(rows,solves):
