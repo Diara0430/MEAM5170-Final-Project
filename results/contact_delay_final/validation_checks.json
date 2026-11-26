@@ -1,0 +1,14 @@
+{
+  "trials": 192,
+  "arrivals": 24,
+  "strategies": 8,
+  "queue_timing_checked_trials": 192,
+  "physics_aggregate_checks": 192,
+  "baseline_810_historical_matches": 12,
+  "max_hand_torque_Nm": 0.95,
+  "max_arm_force_fraction": 1.0,
+  "actual_state_clipping": false,
+  "fixed_arm_delay_charged": true,
+  "wall_clock_overruns_charged": false,
+  "realtime_certified": false
+}

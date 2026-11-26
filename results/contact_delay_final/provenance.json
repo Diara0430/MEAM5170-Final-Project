@@ -1,0 +1,55 @@
+[
+  {
+    "source": "results\\contact_delay_validation\\trials.csv",
+    "rows": 144,
+    "sha256": "b11a2022907f341d9e1c0bfd47a12e91527c02db64c122c4e93cad8a2d49533c"
+  },
+  {
+    "source": "results\\contact_delay_prediction_validation\\trials.csv",
+    "rows": 48,
+    "sha256": "1ac1837583bfab6012e62191d87dd24f067f9a9a6533cf94cc2e627fd5694561"
+  },
+  {
+    "source": "results\\contact_delay_validation\\summary.csv",
+    "rows": 12,
+    "sha256": "e41bb87800665d02f610ef46987642d245166ac72aeb031c47afa7f68071613f"
+  },
+  {
+    "source": "results\\contact_delay_prediction_validation\\summary.csv",
+    "rows": 4,
+    "sha256": "6878158147351da0a06d876a17f8753c613f6c49f8299526a5186daadd7ef9ff"
+  },
+  {
+    "source": "results\\contact_delay_validation\\solver_times.csv",
+    "rows": 4033,
+    "sha256": "561ddad0edeb8d38c7d4ab3d2d0e1d4979a2bf4d25972693cb1ef33887796722"
+  },
+  {
+    "source": "results\\contact_delay_prediction_validation\\solver_times.csv",
+    "rows": 1345,
+    "sha256": "1a9738a2db96ad050eaf404bdbcc8c598d168fcf0ac5dedcd4682024ea939b25"
+  },
+  {
+    "source": "results\\contact_delay_validation\\command_pipeline.csv",
+    "rows": 164947,
+    "sha256": "ba52911a196d2da843927b1d512867602a5f3db95d8d20c958df6568e0834910"
+  },
+  {
+    "source": "results\\contact_delay_prediction_validation\\command_pipeline.csv",
+    "rows": 56795,
+    "sha256": "f76bf9e9941d8f64753441c5808c1b59cc1756f1b45aff532f81fb071158c920"
+  },
+  {
+    "source": "results\\contact_delay_validation\\contact_reference.csv",
+    "rows": 80693,
+    "sha256": "bfcaccc525bce23fdfcc934de728ed614e232701bea110bfe7a8360511b2d09a"
+  },
+  {
+    "source": "results\\contact_delay_validation\\time_series.csv",
+    "sha256": "5ac398198aa4670e141cc5034c1e75ed4c95f7b497d925c643ee96b566d8da2a"
+  },
+  {
+    "source": "results\\contact_delay_prediction_validation\\time_series.csv",
+    "sha256": "b36b1de31ed3a30b456852ee8c1c47371b9209464bf9b1af1ca3dd309f388af5"
+  }
+]

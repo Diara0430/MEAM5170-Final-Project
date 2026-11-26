@@ -1,0 +1,61 @@
+机械臂延迟与接触缓冲：本轮运行说明
+
+推荐先看新验证组811/1：
+& 'D:\test code\.venv\Scripts\python.exe' 'C:\Users\gaoqi\Documents\GitHub\MEAM5170-Final-Project\experiments\watch_catch.py' --experiment delay --seed 811 --scenario 1 --speed 0.25 --loop
+
+默认4组回放按键：
+1：reference_now，上轮保留规划余量+加速度滤波，无额外延迟。
+2：reference_2ms，指令晚一个2 ms物理步交付，未补偿。
+3：reference_predictive_2ms，保留原制动参考，预测到2 ms后再计算要交付的指令。
+4：reference_predictive_4ms，同上，但实际延迟为4 ms。
+Space暂停，[]逐2 ms物理步，R重播，C跳到首触前，T切换相机。
+
+重点观察：
+811/1：2未保持；3保持并通过原运动约束；4漂移约30.4 mm，仍失败。
+811/9：3仍保持，但实际加速度约4.033 rad/s²，按原4的阈值严格判为未通过。
+810/1：1保持，3漂移约26.0 mm未保持，说明补偿并未完全恢复无延迟表现。
+
+本轮24条来球×8种策略=192次。810用于开发检查，811结果未用于调参。
+主要四组：
+seed | 无延迟 held/qualified | 2 ms未补偿 | 2 ms预测补偿 | 4 ms预测补偿
+810  | 10/9                 | 5/0        | 9/8          | 8/7
+811  | 7/6                  | 9/0        | 7/5          | 5/4
+每组12条来球；qualified同时包含保持与原速度/加速度/关节/执行器约束。
+不要只看保持率：811直接延迟能保持9条，但9条均未通过运动约束。
+
+新增控制计算：
+1. 指令从生成到交付经过明确队列，延迟期间真实物理状态继续演化，执行旧ctrl。
+2. 预测器从当前已知状态复制独立仿真，使用已经生成的待交付命令传播到未来交付时刻。
+3. 真实未来手指ctrl未知，预测中保持当前手指命令；不读取真实未来状态。
+4. 在预测交付状态上计算参考和受约束力矩修正，再排队等待交付。
+5. 对每步审计applied_generation_step=k-delay_steps，不能把未来命令提前生效。
+所有真实qpos/qvel由原执行器和mj_step积分得到，没有裁剪物理状态，没有机器学习。
+
+另四组为缓冲消融：
+measured_now / measured_2ms：以实测关节状态重新生成顺来球方向质量-阻尼缓冲，不独立积分虚拟关节轨迹。
+predictive_2ms / predictive_4ms：在该新缓冲参考上加延迟预测。
+这些组总体效果较差：无延迟实测参考在811只有1/12通过运动约束；810存在约60.15 rad/s²峰值。
+消除独立积分本身不足以保证稳定，当前不推荐将此参考替换原制动策略。
+若想观察该失败对照，可在回放命令加 --strategy measured_now，或选择以上其他名字。
+
+重要边界：
+仅对七轴机械臂ctrl注入固定2/4 ms延迟，手指仍每2 ms更新；不是全系统传感与执行延迟认证。
+记录了参考更新和跟踪/预测/滤波耗时，但没有将每步墙钟超时额外叠加到固定延迟，也未模拟单CPU忙碌调度。
+因此realtime_certified仍全部为0，不能宣称已完成实时控制验证。
+未来手指运动和接触切换仍会产生预测误差；局部QP有松弛和迭代上限，实际约束仍可能失败。
+法向载荷包含内部夹持力，不等于物体净力；本轮没有给接触载荷建立全局硬上限。
+仍只覆盖已知状态球体、重力来球，未覆盖不规则物体、随机外力、观测噪声和实机。
+原保持判据不变：触球300 ms后连续手指接触两秒、无落地、漂移<=25 mm；实际关节速度<=1、加速度<=4。
+
+文件：
+controllers/scheduled_arm_tracker.py：延迟队列与到达时刻预测。
+controllers/measured_contact_reference.py：新缓冲参考，保留为实验分支。
+experiments/contact_delay_ablation.py：八组对照；contact_delay_report.py：合并、核对、英文作图。
+results/contact_delay_final：192次原始数据、配对差异、图表和说明；逐步CSV按810/811拆分。
+results/contact_delay_replays：成功与失败回放。更改源代码或延迟配置后缓存会失效并重新核对。
+
+完整复现（在项目目录，使用新输出目录）：
+python -m experiments.contact_delay_ablation --output-dir results/<new-folder> --baseline-dir results/contact_delay_final --seeds 810 811
+python -m experiments.contact_delay_report results/<new-folder>
+
+下一步优先预测未来手指运动及接触切换，并考虑预测误差余量；随后共同设计缓冲目标与力矩QP，加入可复现的延迟抖动/实际超时调度。
