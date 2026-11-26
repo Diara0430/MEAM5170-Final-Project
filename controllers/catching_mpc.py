@@ -74,7 +74,7 @@ class CatchingMPC:
             return np.hstack((.5*t*t*np.eye(7),np.zeros((7,7)))),np.hstack((t*np.eye(7),np.zeros((7,7))))
         return np.hstack((h*(t-.5*h)*np.eye(7),.5*(t-h)**2*np.eye(7))),np.hstack((h*np.eye(7),(t-h)*np.eye(7)))
 
-    def solve(self,data,p,v,now,previous):
+    def solve(self,data,p,v,now,previous,durations=None):
         start=time.perf_counter()
         m=self.model
         ck=self.checker
@@ -99,7 +99,9 @@ class CatchingMPC:
         torque_map=sparse.block_diag((mass,mass)).toarray()
         best=None;best_score=float("inf")
         solved=0
-        for duration in (.12,.18,.24,.30,.36,.42,.48,.54,.60,.66):
+        if durations is None:
+            durations = (.12,.18,.24,.30,.36,.42,.48,.54,.60,.66)
+        for duration in durations:
             flight_time=lag+duration
             point=p+v*flight_time+.5*m.opt.gravity*flight_time**2
             incoming=v+m.opt.gravity*flight_time
