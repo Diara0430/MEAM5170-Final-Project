@@ -123,6 +123,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             if pending is not None and t>=pending.observation_time-1e-10:
                 reference=pending;pending=None;accepted=True;applied+=1
                 last_applied = reference
+                if hasattr(mpc, "on_applied"):
+                    mpc.on_applied(reference, t)
                 if first_applied is None:
                     first_applied, first_application_time = reference, t
             if not braking and first_contact is None and camera_tick and nominal is not None and t < nominal + .25:
