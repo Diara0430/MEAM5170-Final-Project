@@ -133,6 +133,8 @@ def main():
             schedule = schedules.get((seed, case))
             for name, policy in (("headroom_filter", None), ("follow_through", FollowThrough())):
                 result, calls, trace = run_trial(model, xyz, speed, seed, case, policy, schedule)
+                if calls:
+                    save_csv(args.output_dir / f"seed{seed}_case{case}_{name}_timing.csv", calls)
                 if name == "headroom_filter":
                     schedule = {round(r["time_s"] / model.opt.timestep): bool(r["overrun"]) for r in calls}
                 result["strategy"] = name
