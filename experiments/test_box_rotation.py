@@ -8,6 +8,16 @@ from experiments.shape_catch import box_launch
 
 
 class RotationTests(unittest.TestCase):
+    def test_planning_clearance_for_supported_shapes(self):
+        from controllers.intercept_planner import InterceptPlanner
+        from experiments.intercept_tracking import initial
+        from scene_setup.scene import build_scene
+
+        for shape in ("box", "ball"):
+            model = build_scene(shape)
+            planner = InterceptPlanner(model, initial(model))
+            self.assertAlmostEqual(planner.radius, np.linalg.norm(model.geom("projectile").size))
+
     def test_delay_sign_and_body_rate(self):
         track = RotationTrack(np.random.default_rng(10), .04, 0.)
         start = Rotation.from_euler("xyz", [.4, -.7, .1])
