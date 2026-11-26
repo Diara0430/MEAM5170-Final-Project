@@ -1,0 +1,32 @@
+name: Cross-check a certified-span speed rule under paired sensor conditions
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['.github/workflows/speed-band-rule.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        seed: [911, 912, 913, 914]
+        profile: [normal, stress]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: |
+          profile=()
+          if [[ "${{ matrix.profile }}" = stress ]]; then profile=(--stress); fi
+          python -m experiments.fixed_speed_sweep --wide-mid --seed ${{ matrix.seed }} --output-dir data "${profile[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: band-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data/
+      - run: cat data/trials.csv

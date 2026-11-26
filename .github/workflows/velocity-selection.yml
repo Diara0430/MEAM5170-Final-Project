@@ -1,0 +1,62 @@
+name: Achievable velocity on observed long throws
+on:
+  push:
+    branches: [experiment/observed-long-arc]
+    paths:
+      - 'controllers/velocity_selection.py'
+      - 'controllers/catching_mpc.py'
+      - 'experiments/velocity_selection.py'
+      - 'experiments/test_velocity_selection.py'
+      - 'experiments/observed_long_arc.py'
+      - 'experiments/mpc_ball_catch.py'
+      - '.github/workflows/velocity-selection.yml'
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [821, 822, 823]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_ball_observer experiments.test_velocity_selection
+      - run: python -m experiments.velocity_selection --seed ${{ matrix.seed }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velocity-screen-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv
+  confirm:
+    needs: screen
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [831, 832, 833]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: velocity-screen-*
+          path: screening
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.velocity_selection --seed ${{ matrix.seed }} --output-dir data --selection screening/*/trials.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velocity-confirm-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv

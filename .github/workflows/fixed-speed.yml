@@ -1,0 +1,66 @@
+name: Fixed point and time speed sweep
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/fixed_intercept.py', 'experiments/fixed_speed_sweep.py', 'controllers/catching_mpc.py', '.github/workflows/fixed-speed.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  development:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [871, 872, 873]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_ball_observer experiments.test_velocity_selection
+      - run: python -m experiments.fixed_speed_sweep --seed ${{ matrix.seed }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: training-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv
+  validation:
+    needs: development
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {seed: 881, profile: normal}
+          - {seed: 882, profile: normal}
+          - {seed: 883, profile: normal}
+          - {seed: 884, profile: normal}
+          - {seed: 885, profile: normal}
+          - {seed: 891, profile: stress}
+          - {seed: 892, profile: stress}
+          - {seed: 893, profile: stress}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: training-*
+          path: training
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: |
+          profile=()
+          if [[ "${{ matrix.profile }}" = stress ]]; then profile=(--stress); fi
+          python -m experiments.fixed_speed_sweep --seed ${{ matrix.seed }} --output-dir data --selection training/*/trials.csv "${profile[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.profile }}-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv

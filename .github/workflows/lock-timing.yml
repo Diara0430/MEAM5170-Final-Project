@@ -1,0 +1,57 @@
+name: Online intercept lock timing
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/lock_timing.py', 'experiments/lock_timing.py', 'experiments/test_lock_timing.py', '.github/workflows/lock-timing.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  development:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [931, 932, 933]
+        profile: [normal, noisy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_lock_timing experiments.test_ball_observer
+      - run: python -m experiments.lock_timing --seed ${{ matrix.seed }} --profile ${{ matrix.profile }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lock-dev-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data/trials.csv
+      - run: cat data/trials.csv
+  validation:
+    needs: development
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [941, 942, 943, 944, 945]
+        profile: [normal, noisy, corrected]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lock-dev-*
+          path: training
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.lock_timing --seed ${{ matrix.seed }} --profile ${{ matrix.profile }} --selection training/*/trials.csv --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lock-validation-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data/trials.csv
+      - run: cat data/trials.csv

@@ -1,0 +1,28 @@
+name: Check forecast errors by observation time
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['experiments/lock_forecast_error.py', '.github/workflows/lock-forecast.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+jobs:
+  plane:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [normal, noisy, corrected]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.lock_forecast_error --profile ${{ matrix.profile }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plane-${{ matrix.profile }}
+          path: data
+      - run: cat data/by_time.csv
+      - run: cat data/first_gate.csv
