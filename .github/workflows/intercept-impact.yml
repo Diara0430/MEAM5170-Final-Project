@@ -1,0 +1,31 @@
+name: Compare feasible interception plans for joint loading and soft contact
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/intercept_impact.py', 'experiments/intercept_impact.py', 'experiments/test_intercept_impact.py', '.github/workflows/intercept-impact.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [normal, noisy]
+        seed: [1011, 1012, 1013, 1021, 1022, 1023, 1024, 1025, 1026]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_intercept_impact experiments.test_segmented_flight experiments.test_lock_timing
+      - run: python -m experiments.intercept_impact --seed ${{ matrix.seed }} --profile ${{ matrix.profile }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: impact-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data
+      - run: cat data/trials.csv

@@ -55,13 +55,14 @@ class CatchingMPC:
     period=.020
 
     def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None, *,
-                 planning_speed_limit=1., orientation_tolerance=.03):
+                 planning_speed_limit=1., orientation_tolerance=.03, contact_selector=None):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
             raise ValueError("Positive finite planning acceleration limit required")
         if not (0 < planning_speed_limit <= 1 and 0 < orientation_tolerance <= .15):
             raise ValueError("Invalid planning speed limit or orientation tolerance")
+        self.contact_selector = contact_selector
         self.planning_speed_limit = planning_speed_limit
         self.orientation_tolerance = orientation_tolerance
         self.model=model
@@ -110,6 +111,7 @@ class CatchingMPC:
         bias=data.qfrc_bias[ck.dofs]-data.qfrc_passive[ck.dofs]
         torque_map=sparse.block_diag((mass,mass)).toarray()
         best=None;best_score=float("inf")
+        shortlist = [] if self.contact_selector is not None else None
         solved=0
         if durations is None:
             durations = (.12,.18,.24,.30,.36,.42,.48,.54,.60,.66)
@@ -228,8 +230,17 @@ class CatchingMPC:
                 plan.predicted_normal_speed = float(normal @ (incoming - hand_velocity))
                 score = self.velocity_selection.score(
                     incoming, hand_velocity, normal, actual-point, stop_margin)
+            if shortlist is not None:
+                shortlist.append((score, plan))
             if score<best_score:
                 best_score=score;best=plan;self.last_solution=x.copy()
+        if shortlist is not None and len(shortlist) >= 2:
+            shortlist.sort(key=lambda item: item[0])
+            selected = self.contact_selector.choose(data, now, shortlist[0][1], shortlist[1][1],
+                                                    start+self.period)
+            if selected is not best:
+                best = selected
+                self.last_solution = np.concatenate((best.first,best.second))
         return best,dict(wall_s=time.perf_counter()-start,feasible_candidates=solved)
 
 

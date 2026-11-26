@@ -14,7 +14,7 @@ from experiments.rolling_success import POLICIES, StudyTrack
 from scene_setup.scene import build_scene
 
 
-def compare(model, seed, case, start, velocity, profile, core, recovery):
+def compare(model, seed, case, start, velocity, profile, core, recovery, *, selector_factory=None):
     factors = set(core.split("_"))
     observer = planner = None
 
@@ -33,6 +33,8 @@ def compare(model, seed, case, start, velocity, profile, core, recovery):
     def controller(*args, **kwargs):
         nonlocal planner
         cls = PalmAimRecovery if recovery else TimingMPC
+        if selector_factory is not None:
+            kwargs["contact_selector"] = selector_factory(model, observer)
         planner = cls(*args, observer=observer, rule=RULES["rolling"], **kwargs,
                       planning_speed_limit=.97 if "reserve" in factors else 1.,
                       orientation_tolerance=.085 if "wrist" in factors else .03)
@@ -44,6 +46,8 @@ def compare(model, seed, case, start, velocity, profile, core, recovery):
                camera_max_ms=observer.sample_max_ms, offset_trials=getattr(planner,"offset_trials",0),
                offset_deliveries=getattr(planner,"offset_deliveries",0),
                first_offset_s=getattr(planner,"first_offset",None))
+    if selector_factory is not None:
+        row.update(planner.contact_selector.summary())
     return row
 
 
