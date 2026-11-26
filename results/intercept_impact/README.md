@@ -102,3 +102,5 @@ python -m experiments.local_impact --seed 1031 --profile noisy --output-dir resu
 python -m experiments.fixed_point_trim --seed 1041 --profile normal --output-dir results_local/trim
 python -m experiments.plot_intercept_impact results/intercept_impact
 ```
+
+后续已完成七轴逐步回放、第六轴针对性验证及自旋长方体的完整接取实验。[查看结果、逐球数据和长方体回放](../shape_transfer/README.md)。
