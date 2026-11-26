@@ -43,13 +43,14 @@ jobs:
   box-replay:
     runs-on: ubuntu-latest
     env:
-      MUJOCO_GL: egl
-      PYOPENGL_PLATFORM: egl
+      MUJOCO_GL: osmesa
+      PYOPENGL_PLATFORM: osmesa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y libosmesa6 libgl1-mesa-dri
       - run: python -m pip install -r scene_setup/requirements.txt pillow
       - run: python -m unittest experiments.test_box_rotation
       - run: python -m experiments.shape_replay --seed 1071 --case 0 --profile normal --method pose --output-dir data
