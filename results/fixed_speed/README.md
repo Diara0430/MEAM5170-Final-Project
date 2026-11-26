@@ -86,3 +86,5 @@ python -m experiments.fixed_speed_sweep --wide-mid --stress --seed 911 --output-
 python -m experiments.wrist_impact --seed 901 --output-dir local/wrist901
 python -m experiments.plot_fixed_speed results/fixed_speed
 ```
+
+后续实验比较了定时锁定、预测稳定后锁定、允许撤销和持续滚动选点，并给出了按观测质量划分的实际锁定时间与抓取结果。[接点锁定时机实验](../lock_timing/README.md)
