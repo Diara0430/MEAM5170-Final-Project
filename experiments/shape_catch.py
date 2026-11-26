@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from controllers.box_grasp import BoxGrasp
 from controllers.box_rotation import BoxExtent, RotationTrack, as_wxyz, from_wxyz
 from controllers.catch_approach import CatchApproach
 from controllers.fixed_point_trim import FixedPointTrim
@@ -64,9 +65,9 @@ class ShapeAudit(ContactTrace):
             self.travel = max(self.travel, np.linalg.norm(center-self.home))
             # Log near 50 Hz. Save a strictly pre-contact estimate for the 100 ms forecast.
             if round(t/model.opt.timestep) % round(.020/model.opt.timestep) == 1:
-                r = observer.rotation_track.at(t+.100)
+                r = observer.rotation_track.at(t)
                 if r is not None and observer.estimate is not None:
-                    self.history.append((t+.100, r, observer.estimate.at(t+.100)[0]))
+                    self.history.append((t, r, observer.rotation_track.rate.copy(), observer.estimate))
             return
         actual = from_wxyz(data.joint("flight").qpos[3:])
         if not self.observed_contact:
@@ -75,10 +76,11 @@ class ShapeAudit(ContactTrace):
             if estimated is not None:
                 self.error = np.rad2deg((actual.inv()*estimated).magnitude())
             if self.history:
-                stamp, rot, pos = min(self.history, key=lambda x: abs(x[0]-t))
-                if abs(stamp-t) <= .010001:
-                    self.future_error = np.rad2deg((actual.inv()*rot).magnitude())
-                    self.position_error = 1000*np.linalg.norm(data.joint("flight").qpos[:3]-pos)
+                stamp, rot, rate, estimate = min(self.history, key=lambda x: abs(t-x[0]-.100))
+                if abs(t-stamp-.100) <= .010001:
+                    predicted_rot = rot * Rotation.from_rotvec(rate*(t-stamp))
+                    self.future_error = np.rad2deg((actual.inv()*predicted_rot).magnitude())
+                    self.position_error = 1000*np.linalg.norm(data.joint("flight").qpos[:3]-estimate.at(t)[0])
         if t >= onset+.3-1e-10:
             palm = from_wxyz(data.body("hand/palm_lower").xquat)
             relative = palm.inv()*actual
@@ -93,7 +95,7 @@ class ShapeAudit(ContactTrace):
                     forecast_100ms_position_mm=self.position_error, hold_rotation_deg=self.max_rotation)
 
 
-def simulate(model, seed, case, p, v, profile, method):
+def simulate(model, seed, case, p, v, profile, method, *, grasp="original", record_frame=None):
     so = dict(launch_rotation=box_launch(seed, case))
     if method == "single":
         so["heights"] = (0.,)
@@ -104,13 +106,35 @@ def simulate(model, seed, case, p, v, profile, method):
     selector = {"extent": BoxExtent, "trim": FixedPointTrim, "short": ShortImpact,
                 "spot": ImpactSpot, "inertia": partial(InterceptImpact, method="inertia"),
                 "preview": partial(InterceptImpact, method="preview")}.get(method)
-    sensor = partial(BoxObserver, use_pose=method!="center")
+    observer = hand = None
+
+    def sensor(*args, **kwargs):
+        nonlocal observer
+        observer = BoxObserver(*args, use_pose=method!="center", **kwargs)
+        return observer
+
+    if grasp in ("aperture", "aperture_slip"):
+        def make_hand(model, actuators):
+            nonlocal hand
+            hand = BoxGrasp(model, actuators, observer, slip_feedback=grasp=="aperture_slip")
+            return hand
+        so["hand_controller_factory"] = make_hand
+    elif grasp != "original":
+        raise ValueError("Unknown cuboid grasp")
+
     trace = ShapeAudit(model)
+
+    def record(*args):
+        trace.record(*args)
+        if record_frame is not None:
+            record_frame(*args)
     row = compare(model, seed, case, p, v, profile, "track_reserve", True,
-                  record_frame=trace.record, selector_factory=selector, sensor_type=sensor,
+                  record_frame=record, selector_factory=selector, sensor_type=sensor,
                   rule_name="stable4" if method=="early_lock" else "rolling", trial_options=so)
     quat, omega = so["launch_rotation"]
-    return dict(**row, **trace.summary(row), shape="box", method=method,
+    return dict(**row, **trace.summary(row), shape="box", method=method, grasp=grasp,
+                box_width_mm=None if hand is None or hand.width is None else 1000*hand.width,
+                slip_steps=hand.slip.active_steps if hand is not None and hand.slip else 0,
                 spin_rad_s=np.linalg.norm(omega), **{f"launch_q{i}": x for i,x in enumerate(quat)})
 
 

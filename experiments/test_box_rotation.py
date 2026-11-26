@@ -18,6 +18,22 @@ class RotationTests(unittest.TestCase):
             planner = InterceptPlanner(model, initial(model))
             self.assertAlmostEqual(planner.radius, np.linalg.norm(model.geom("projectile").size))
 
+    def test_physical_spin_convention(self):
+        import mujoco
+        from controllers.box_rotation import from_wxyz
+        from scene_setup.scene import build_scene
+
+        model = build_scene("box")
+        data = mujoco.MjData(model)
+        quat, omega = box_launch(1051, 2)
+        flight = data.joint("flight")
+        flight.qpos[:] = [4., 4., 4., *quat]
+        flight.qvel[3:] = omega
+        mujoco.mj_forward(model, data)
+        mujoco.mj_step(model, data)
+        measured = (from_wxyz(quat).inv()*from_wxyz(flight.qpos[3:])).as_rotvec()
+        np.testing.assert_allclose(measured, omega*model.opt.timestep, atol=3e-5)
+
     def test_delay_sign_and_body_rate(self):
         track = RotationTrack(np.random.default_rng(10), .04, 0.)
         start = Rotation.from_euler("xyz", [.4, -.7, .1])

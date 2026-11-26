@@ -1,8 +1,5 @@
 name: Screen long throws with delayed box pose and spin
-on:
-  push:
-    branches: [experiment/fixed-intercept-speed]
-    paths: ['.github/workflows/rotating-box-screen.yml', 'experiments/shape_catch.py', 'controllers/intercept_planner.py']
+on: workflow_dispatch
 permissions:
   contents: read
 env:
