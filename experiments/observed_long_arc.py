@@ -16,7 +16,8 @@ from experiments.mpc_ball_catch import run_case
 from scene_setup.scene import build_scene
 
 
-STRATEGIES = {"parked": (), "single_height": (0.,), "select_height": (.065, 0., -.065)}
+STRATEGIES = {"parked": (), "single_height": (0.,), "select_height": (.065, 0., -.065),
+              "seven_heights": tuple(np.linspace(.065, -.065, 7))}
 OFFSET = np.array([0., -.055, -.08])
 
 
@@ -48,6 +49,7 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
     path = []
     errors = {}
     first_touch_travel = None
+    touch_target_error = touch_lead = None
     closest = np.inf
     preplan_travel = 0.
     active_travel = 0.
@@ -61,7 +63,7 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
 
     def record(m, d, info):
         nonlocal first_touch_travel, closest, preplan_travel, active_travel, last_free
-        nonlocal previous_arm_v, peak_time
+        nonlocal previous_arm_v, peak_time, touch_target_error, touch_lead
         now = float(d.time)
         center_now = capture_center(d)
         ball = d.joint("flight").qpos[:3].copy()
@@ -89,6 +91,10 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
                         errors[horizon] = float(np.linalg.norm(ball - predicted))
         elif first_touch_travel is None:
             first_touch_travel = last_free
+            plan = info.get("applied_reference")
+            if plan is not None:
+                touch_target_error = 1000 * float(np.linalg.norm(center_now - plan.point))
+                touch_lead = 1000 * (plan.intercept_time - contact)
         stride = 5*camera_ticks if contact is not None and now > contact + .12 else camera_ticks
         if round(now/dt) % stride:
             return
@@ -116,6 +122,7 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
     if row["first_application_s"] is not None and row["first_application_s"] < estimate.time + .02 - 1e-8:
         raise AssertionError("Arm plan applied before measurement and solver delay")
     row.update(strategy=strategy, first_estimate_s=estimate.time, peak_precontact_travel_mm=1000*active_travel,
+               palm_to_selected_at_touch_mm=touch_target_error, planned_minus_touch_ms=touch_lead,
                peak_flight_accel=stage_peaks["flight"], peak_contact20_accel=stage_peaks["contact_20ms"],
                peak_later_accel=stage_peaks["later"], peak_accel_time_s=peak_time,
                before_plan_travel_mm=1000*preplan_travel, closest_free_mm=1000*closest,
@@ -149,8 +156,8 @@ def main():
             row, sample = run_trial(model, center, args.seed, case, start, velocity, name)
             row.update(home_crossing_s=duration, horizontal_throw_m=distance, home_offset_m=offset)
             rows.append(row)
-            if name == "select_height":
-                (args.output_dir / f"case{case}.json").write_text(json.dumps(sample), encoding="utf-8")
+            if name in ("select_height", "seven_heights"):
+                (args.output_dir / f"{name}_case{case}.json").write_text(json.dumps(sample), encoding="utf-8")
             print(args.seed, case, name, row["contacted"], row["held"], row["qualified"], flush=True)
     save_csv(args.output_dir / "trials.csv", rows)
 

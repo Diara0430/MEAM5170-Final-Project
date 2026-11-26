@@ -36,7 +36,7 @@ jobs:
           cat data/trials.csv
           python - <<'PY'
           import json, pathlib, gzip, base64
-          cases = [json.loads(p.read_text()) for p in sorted(pathlib.Path("data").glob("case*.json"))]
+          cases = [json.loads(p.read_text()) for p in sorted(pathlib.Path("data").glob("seven_heights_case*.json"))]
           sample = max(cases, key=lambda s: (s["qualified"], s["held"], s["contact"] is not None, s["first_plan"] is not None))
           encoded = base64.b64encode(gzip.compress(json.dumps(sample).encode())).decode()
           for i in range(0, len(encoded), 2000):
