@@ -1,0 +1,44 @@
+name: Observed long-arc interception
+on:
+  push:
+    branches: [experiment/observed-long-arc]
+    paths:
+      - 'controllers/**'
+      - 'experiments/mpc_ball_catch.py'
+      - 'experiments/observed_long_arc.py'
+      - '.github/workflows/observed-long-arc.yml'
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [821, 822, 823]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_ball_observer
+      - run: python -m experiments.observed_long_arc --seed ${{ matrix.seed }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trajectories-${{ matrix.seed }}
+          path: data/
+      - run: |
+          cat data/trials.csv
+          python - <<'PY'
+          import json, pathlib, gzip, base64
+          cases = [json.loads(p.read_text()) for p in sorted(pathlib.Path("data").glob("seven_heights_case*.json"))]
+          sample = max(cases, key=lambda s: (s["qualified"], s["held"], s["contact"] is not None, s["first_plan"] is not None))
+          encoded = base64.b64encode(gzip.compress(json.dumps(sample).encode())).decode()
+          for i in range(0, len(encoded), 2000):
+              print(f"REPLAY_{i//2000:03d}={encoded[i:i+2000]}")
+          PY

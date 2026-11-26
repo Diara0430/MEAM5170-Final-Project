@@ -13,6 +13,7 @@ import numpy as np
 
 if __package__ in (None, ""):
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from controllers.ball_observer import crossing_durations
 from controllers.arm_reference_tracker import ArmReferenceTracker
 from controllers.catching_mpc import CatchingMPC,AccelerationReference,braking_reference
 from controllers.catch_approach import EntryTrigger
@@ -27,28 +28,40 @@ from scene_setup.scene import build_scene
 
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
-             allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None,approach=None):
+             allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None,approach=None,
+             observer=None, height_offsets=(0.,), velocity_selection=None):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
     if buffer_factory is not None and follow_through is not None:
         raise ValueError("Choose one post-contact reference generator")
     if approach is not None and mode != "mpc_match":
         raise ValueError("Approach policies require active velocity-matched MPC")
+    if observer is not None and (mode == "static_predict" or (approach and approach.entry)):
+        raise ValueError("Observed trials use tactile closure")
     data=launch(model,p,v)
     tracker=ArmReferenceTracker(model) if tracker_factory is None else tracker_factory(model)
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
-    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach)
+    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach,
+                    velocity_selection=velocity_selection)
     entry = EntryTrigger(model, mpc.checker) if approach is not None and approach.entry else None
     last_applied = None
     close_reason = None
     measured_fraction = actual_tilt = contact_ball_speed = None
     reference=hold_plan(model,data)
-    roots=np.roots([.5*model.opt.gravity[2],v[2],p[2]-
-        (data.body("hand/palm_lower").xpos+data.body("hand/palm_lower").xmat.reshape(3,3)@mpc.checker.local_capture)[2]])
-    times=[float(r.real) for r in roots if abs(r.imag)<1e-9 and r.real>0 and v[2]+model.opt.gravity[2]*r.real<0]
-    nominal=min(times) if times else .5
+    home_palm = data.body("hand/palm_lower")
+    home_height = (home_palm.xpos + home_palm.xmat.reshape(3, 3) @ mpc.checker.local_capture)[2]
+    nominal = None
+    if observer is None:
+        roots = np.roots([.5 * model.opt.gravity[2], v[2], p[2] - home_height])
+        times = [float(r.real) for r in roots if abs(r.imag) < 1e-9 and r.real > 0
+                 and v[2] + model.opt.gravity[2] * r.real < 0]
+        nominal = min(times) if times else .5
+    # Observed trials use a fixed free-flight timeout, independent of launch state.
+    flight_deadline = nominal + 2.3 if observer is None else 2.5
+    robot_view = mujoco.MjData(model) if observer is not None else None
+    first_applied = first_application_time = None
     projectile=model.geom("projectile").id;floor=model.geom("floor").id
     palm=model.body("hand/palm_lower").id
     hand_geoms={i for i,b in enumerate(model.geom_bodyid) if (model.body(b).name or "").startswith("hand/")}
@@ -81,8 +94,24 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             stop_fallbacks += 1
         return braking_reference(model, data, t)
 
-    while data.time<(first_contact if first_contact is not None else nominal)+2.3-dt/2:
+    while data.time < (first_contact + 2.3 if first_contact is not None else flight_deadline) - dt/2:
         t=float(data.time)
+        camera_tick = round(t/dt) % tick == 0
+        control_data = data
+        if observer is not None and first_contact is None:
+            if camera_tick:
+                estimate = observer.sample(t, data.joint("flight").qpos[:3])
+                if estimate is not None:
+                    crossing = estimate.descending_crossing(home_height)
+                    if crossing is not None:
+                        nominal = crossing
+            # Neither the pre-contact tracker nor its one-step dynamics probe may
+            # anticipate impact by inspecting the simulator projectile.
+            mujoco.mj_copyData(robot_view, model, data)
+            robot_view.joint("flight").qpos[:] = [4., 4., 4., 1., 0., 0., 0.]
+            robot_view.joint("flight").qvel[:] = 0.
+            mujoco.mj_forward(model, robot_view)
+            control_data = robot_view
         if active:
             if first_contact is not None and (not braking or (buffer_factory is not None and not buffering_started)):
                 reference=(stop_reference(t) if buffer_factory is None else
@@ -94,8 +123,16 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             if pending is not None and t>=pending.observation_time-1e-10:
                 reference=pending;pending=None;accepted=True;applied+=1
                 last_applied = reference
-            if not braking and first_contact is None and t<nominal+.25 and round(t/dt)%tick==0:
-                plan,info=mpc.solve(data,data.joint("flight").qpos[:3].copy(),data.joint("flight").qvel[:3].copy(),t,reference)
+                if first_applied is None:
+                    first_applied, first_application_time = reference, t
+            if not braking and first_contact is None and camera_tick and nominal is not None and t < nominal + .25:
+                if observer is None:
+                    position, velocity = data.joint("flight").qpos[:3], data.joint("flight").qvel[:3]
+                    durations = None
+                else:
+                    position, velocity = observer.estimate.at(t)
+                    durations = crossing_durations(observer.estimate, home_height, height_offsets, t, mpc.period)
+                plan,info=mpc.solve(control_data,position,velocity,t,reference,durations=durations)
                 measured_overrun=info["wall_s"]>mpc.period
                 # 诊断回放可使用已记录的决策，隔离记录开销对控制时序的影响。
                 step=round(t/dt)
@@ -122,11 +159,13 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
                 hand.command(data,hand.open_pose,hand.closed,(t-close)/closure_duration)
             else:
                 hand_controller.command(model,data,t-close)
-        elif hand_controller is not None:
-            hand_controller.prepare(model,data,t,nominal)
+        elif hand_controller is not None and nominal is not None:
+            hand_controller.prepare(model,control_data,t,nominal)
         if hasattr(reference,"update"):
             reference.update(model,data,t)
-        tracker.command(data,reference,t)
+        tracker.command(control_data,reference,t)
+        if control_data is not data:
+            data.ctrl[:] = control_data.ctrl
         velocity=data.qvel.copy()
         mujoco.mj_step(model,data)
         touching=contacts_with(data,projectile)
@@ -145,7 +184,7 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
                 if contact_ball_speed > 1e-9:
                     measured_fraction = float((jac @ velocity) @ ball_velocity / contact_ball_speed**2)
                 actual_tilt = float(np.rad2deg(np.arccos(np.clip(rotation[:, 2] @ mpc.orientation[:, 2], -1., 1.))))
-        if hand_controller is not None:
+        if hand_controller is not None and (observer is None or first_contact is not None):
             # 已解出的真实接触力只影响下一物理步，避免使用未来接触信息。
             hand_controller.observe(model,data,velocity=velocity)
         if first_contact is not None and t<first_contact+.1-1e-10:
@@ -176,7 +215,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         mujoco.mj_kinematics(model,data);mujoco.mj_comPos(model,data)
         palm_state=data.body(palm)
         relative=palm_state.xmat.reshape(3,3).T@(data.body("projectile").xpos-palm_state.xpos)
-        hold_start=(first_contact if first_contact is not None else nominal)+.3
+        anchor = first_contact if first_contact is not None else nominal
+        hold_start = anchor + .3 if anchor is not None else float("inf")
         if t+dt>=hold_start-1e-10:
             if origin is None:origin=relative.copy()
             drift=max(drift,float(np.linalg.norm(relative-origin)))
@@ -188,9 +228,11 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         # 完整状态记录在物理步和运动学更新后执行，观察器不参与控制。
         if frame_observer is not None:
             frame_observer(model,data,dict(first_contact_s=first_contact,close_s=close,drift_mm=1000*drift,
-                floor=bool(floor in touching),finger_contact=bool(touching&fingers),plans_applied=applied))
+                floor=bool(floor in touching),finger_contact=bool(touching&fingers),plans_applied=applied,
+                applied_reference=last_applied))
         if grounded:break
-    held=accepted and first_contact is not None and not grounded and continuous and drift<=.025
+    physically_held = first_contact is not None and not grounded and continuous and drift <= .025
+    held = accepted and physically_held
     qualified=held and peak_speed<=1. and peak_accel<=4. and margin>=0 and force_fraction<=1.000001
     diagnostics = {}
     if approach is not None:
@@ -199,6 +241,15 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             last_target_fraction=None if last_applied is None else last_applied.match_fraction,
             last_predicted_speed=None if last_applied is None else last_applied.incoming_speed,
             measured_fraction=measured_fraction, actual_tilt_deg=actual_tilt, contact_ball_speed=contact_ball_speed)
+    if observer is not None:
+        diagnostics.update(physical_hold=int(physically_held), first_application_s=first_application_time,
+            first_selected_s=None if first_applied is None else first_applied.intercept_time,
+            first_planned_height_offset_m=None if first_applied is None else first_applied.point[2] - home_height)
+    if velocity_selection is not None:
+        diagnostics.update(
+            predicted_match=None if last_applied is None else last_applied.predicted_match,
+            predicted_normal_speed=None if last_applied is None else last_applied.predicted_normal_speed,
+            planned_stop_margin_rad=None if last_applied is None else last_applied.stop_margin)
     return dict(**diagnostics,seed=seed,scenario=scenario,kind=kind,mode=mode,accepted=int(accepted),contacted=int(first_contact is not None),
         held=int(held),qualified=int(qualified),first_contact_s=first_contact,close_s=close,
         first_normal_relative_speed_m_s=normal_speed,peak_normal_first100ms_N=peak_force,normal_impulse_first100ms_Ns=impulse,
