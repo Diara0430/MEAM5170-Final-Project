@@ -26,15 +26,15 @@ from scene_setup.scene import build_scene
 
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
-             allow_schedule_extension=False):
+             allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
     data=launch(model,p,v)
-    tracker=ArmReferenceTracker(model)
+    tracker=ArmReferenceTracker(model) if tracker_factory is None else tracker_factory(model)
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
-    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.)
+    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit)
     reference=hold_plan(model,data)
     roots=np.roots([.5*model.opt.gravity[2],v[2],p[2]-
         (data.body("hand/palm_lower").xpos+data.body("hand/palm_lower").xmat.reshape(3,3)@mpc.checker.local_capture)[2]])

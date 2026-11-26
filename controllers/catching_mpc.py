@@ -49,12 +49,15 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
+        if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
+            raise ValueError("Positive finite planning acceleration limit required")
         self.model=model
         self.checker=InterceptPlanner(model,data)
         self.match=velocity_match
+        self.acceleration_limit=acceleration_limit
         self.orientation=data.body(self.checker.palm).xmat.reshape(3,3).copy()
         self.ids=[model.actuator(f"act{i}").id for i in range(1,8)]
         self.force_limits=model.actuator_forcerange[self.ids]
@@ -116,8 +119,8 @@ class CatchingMPC:
                 matrix+=w*a.T@a
                 linear-=w*a.T@b
             constraint=[np.eye(14),torque_map]
-            lower=[np.full(14,-4.),np.tile(self.force_limits[:,0]-bias,2)]
-            upper=[np.full(14,4.),np.tile(self.force_limits[:,1]-bias,2)]
+            lower=[np.full(14,-self.acceleration_limit),np.tile(self.force_limits[:,0]-bias,2)]
+            upper=[np.full(14,self.acceleration_limit),np.tile(self.force_limits[:,1]-bias,2)]
             for t in np.linspace(duration/4,duration,4):
                 qm,vm=self.maps(t,h)
                 constraint.extend((qm,vm))

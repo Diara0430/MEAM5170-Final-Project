@@ -1,0 +1,13 @@
+{
+  "trials": 96,
+  "arrivals": 24,
+  "baseline_809_historical_matches": 12,
+  "max_prediction_error_rad_s2": 0.0,
+  "max_hand_torque_Nm": 0.95,
+  "max_arm_force_fraction": 1.0,
+  "contact_state_matching_filter_vs_admittance": true,
+  "thresholds_unchanged": true,
+  "computation_delay_charged": false,
+  "time_series_aggregate_checks": 96,
+  "headroom_no_lost_baseline_successes": true
+}

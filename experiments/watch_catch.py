@@ -24,10 +24,12 @@ from controllers.hand import LeapHand
 from controllers.joint_aware_closure import ClosureConfig,JointAwareClosure
 from controllers.friction_hold import FrictionHoldClosure,HoldConfig
 from controllers.sphere_cage import CageConfig,SphereCageClosure
+from controllers.discrete_arm_filter import DiscreteArmFilter
 from experiments.buffer_ablation import VARIANTS
 from experiments.finger_closure_ablation import FINGER_VARIANTS
 from experiments.holding_control_ablation import HOLD_VARIANTS
 from experiments.sphere_cage_ablation import CAGE_VARIANTS
+from experiments.arm_filter_ablation import ARM_VARIANTS
 from experiments.intercept_candidates import scenarios
 from experiments.intercept_tracking import initial
 from experiments.mpc_ball_catch import run_case
@@ -135,8 +137,12 @@ def make_clip(model,args,name,signature):
     selection=next((x for x in scenarios(center,model.opt.gravity,seed=args.seed) if x[0]==args.scenario),None)
     if selection is None:raise ValueError("Scenario must be an existing index 0-19")
     case,kind,p,v=selection
-    hand_factory=None;buffered=False;duration=.14
-    if args.experiment=="cage":
+    hand_factory=None;buffered=False;duration=.14;tracker_factory=None;planning_limit=4.
+    if args.experiment=="arm":
+        _,filtered,buffered,planning_limit=next(x for x in ARM_VARIANTS if x[0]==name)
+        hand_factory=lambda m,h:SphereCageClosure(m,h)
+        if filtered:tracker_factory=DiscreteArmFilter
+    elif args.experiment=="cage":
         mode=next(x[1] for x in CAGE_VARIANTS if x[0]==name)
         config=CageConfig()
         if schedule is not None:
@@ -163,12 +169,13 @@ def make_clip(model,args,name,signature):
     print(f"Simulating {name}, seed {args.seed}, case {case}; timing={'recorded' if schedule else 'new measured'} ...",flush=True)
     result,_,_=run_case(model,p,v,case,kind,args.seed,"mpc_match",step_observer=record.contact_step,
         solver_schedule=schedule,buffer_factory=ContactAdmittance if buffered else None,
-        closure_duration=duration,frame_observer=record.frame,hand_controller_factory=hand_factory)
+        closure_duration=duration,frame_observer=record.frame,hand_controller_factory=hand_factory,
+        tracker_factory=tracker_factory,mpc_acceleration_limit=planning_limit)
     verified=False
     if schedule is not None:
         originals=read_csv(args.results_dir/"trials.csv")
         original=next(r for r in originals if int(r["seed"])==args.seed and int(r["scenario"])==case and r["strategy"]==name)
-        for key in ("held","qualified","first_contact_s","close_s","drift_mm","peak_normal_first100ms_N"):
+        for key in ("held","qualified","first_contact_s","close_s","drift_mm","peak_normal_first100ms_N","peak_accel"):
             if result[key] is None and not original[key]:continue
             if not np.isclose(float(result[key]),float(original[key]),atol=1e-5,rtol=1e-8):
                 raise ValueError(f"Historical replay mismatch {name}/{key}: {result[key]} vs {original[key]}")
@@ -283,8 +290,9 @@ def play(model,args,clips,metas,focus):
                 f'{"--" if contact_ms<300 else f"{diag[6]:.1f} mm"}\n'
                 f'{"HELD 2 s" if outcome["held"] else "NOT HELD"}\n{"YES" if outcome["qualified"] else "No"}')
             instructions=f"Space: pause   [ / ]: one physics step\nN / P or 1-{len(clips)}: strategy   R: restart\nC: jump near contact   T: camera\n- / =: playback speed\nOrange: ball trail; Green: ball contacts*\nRed: thumb-hand self penetration >1 mm*\n*Contact measurements: previous 2 ms physics step\nRecorded physics replay; mouse drag does not change outcome"
+            if args.experiment=="arm":instructions+="\nModel-based experiment: control computation delays uncharged"
             load_text="\n".join(f"{label}: {value:.2f} N" for label,value in zip(LABELS,clip["loads"][index]))
-            if args.experiment in ("finger","holding","cage"):
+            if args.experiment in ("finger","holding","cage","arm"):
                 load_text+="\n\nMiddle joints: angle / speed"
                 for label,joint in zip(("F1","F2","F3","Thumb"),(2,6,10,14)):
                     j=model.joint(f"hand/{joint}")
@@ -309,8 +317,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed",type=int,default=805)
     parser.add_argument("--scenario",type=int,default=0)
-    parser.add_argument("--experiment",choices=["buffer","finger","holding","cage"],default="buffer")
-    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS]+[x[0] for x in CAGE_VARIANTS])),default="compare")
+    parser.add_argument("--experiment",choices=["buffer","finger","holding","cage","arm"],default="buffer")
+    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS]+[x[0] for x in CAGE_VARIANTS]+[x[0] for x in ARM_VARIANTS])),default="compare")
     parser.add_argument("--speed",type=float,default=.25)
     parser.add_argument("--paused",action="store_true")
     parser.add_argument("--loop",action="store_true")
@@ -321,14 +329,14 @@ def main():
     parser.add_argument("--snapshot",type=Path,help="Save an offscreen contact-stage PNG instead of opening a window")
     parser.add_argument("--smoke-seconds",type=float,help=argparse.SUPPRESS)
     args=parser.parse_args()
-    result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation",cage="sphere_cage_clearance_validation")
-    replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays",cage="cage_clearance_replays")
+    result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation",cage="sphere_cage_clearance_validation",arm="arm_filter_validation")
+    replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays",cage="cage_clearance_replays",arm="arm_filter_replays")
     if args.results_dir is None:args.results_dir=ROOT/"results"/result_folders[args.experiment]
     if args.cache_dir is None:args.cache_dir=ROOT/"results"/replay_folders[args.experiment]
     if not np.isfinite(args.speed) or args.speed<=0:parser.error("Speed must be positive")
     if not 0<=args.scenario<20:parser.error("Scenario must be between 0 and 19")
-    variants=CAGE_VARIANTS if args.experiment=="cage" else HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
-    allowed_seeds=(807,809) if args.experiment=="cage" else (806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
+    variants=ARM_VARIANTS if args.experiment=="arm" else CAGE_VARIANTS if args.experiment=="cage" else HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
+    allowed_seeds=(809,810) if args.experiment=="arm" else (807,809) if args.experiment=="cage" else (806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
     if args.strategy=="compare" and args.seed not in allowed_seeds:
         parser.error(f"Recorded paired comparison supports seeds {allowed_seeds}. For a new launch choose one --strategy explicitly.")
     if args.strategy!="compare" and args.strategy not in [x[0] for x in variants]:parser.error("Strategy does not belong to this experiment")
@@ -340,12 +348,12 @@ def main():
         clip,meta=make_clip(model,args,name,signature);clips.append(clip);metas.append(meta)
     if args.strategy=="compare":
         # 轻度预成形改变接触前手形，只在拥有相同预成形的组之间核对首触。
-        comparisons=[(1,2)] if args.experiment=="cage" else [(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
+        comparisons=[(1,2)] if args.experiment in ("cage","arm") else [(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
         for left,right in comparisons:
             for key in ("first_contact_s","first_normal_relative_speed_m_s","plans_applied"):
                 if not np.isclose(metas[right]["outcome"][key],metas[left]["outcome"][key],atol=1e-9,rtol=1e-9):
                     raise ValueError(f"Paired pre-contact mismatch: {key}")
-        print("Paired pre-contact checks passed (preshape is an intentional pre-contact intervention).",flush=True)
+        print("Paired pre-contact checks passed (arm filter, planning headroom and preshape can intentionally change pre-contact motion).",flush=True)
     configure_display(model)
     if args.snapshot:snapshot(model,args,clips[0],metas[0],focus)
     elif not args.record_only:play(model,args,clips,metas,focus)

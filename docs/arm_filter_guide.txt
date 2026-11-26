@@ -1,0 +1,55 @@
+实际加速度与规划余量：运行说明
+
+推荐先看新验证集810/3，比较原策略与规划余量+动力学滤波：
+& 'D:\test code\.venv\Scripts\python.exe' 'C:\Users\gaoqi\Documents\GitHub\MEAM5170-Final-Project\experiments\watch_catch.py' --experiment arm --seed 810 --scenario 3 --speed 0.25 --loop
+
+1：coordinated，上一轮食指让位+拇指预整形，原MPC和跟踪器。
+2：acceleration_filter，仅增加实际一步动力学预测与力矩修正。
+3：filter_admittance，在2基础上再叠加原25 mm接触导纳，属于消融对照。
+4：headroom_filter，在2基础上把MPC规划加速度上限从4收紧为3 rad/s²，预留跟踪余量。
+Space暂停，[和]逐2 ms物理步；1—4切换策略，R重播，C跳到接触前，T切换相机。
+窗口的Actual joint accel是实际积分速度之差除以2 ms，不是规划加速度。
+本轮没有机器学习，不改变摩擦、质量或碰撞参数，没有给球添加控制外力。
+
+已完成24条来球×4策略=96次：809用于开发，参数固定后810用于新验证。
+809保持：原8/12，余量+滤波10/12；运动约束合格：0/12→10/12。
+810保持：原5/12，余量+滤波10/12；运动约束合格：0/12→9/12。
+完整策略在两组中均保留原来成功的来球，新增2/5条成功；这不表示任意来球都可靠。
+判据仍为实际速度<=1 rad/s、实际加速度<=4 rad/s²、原关节/执行器限位、接触300 ms后连续手指接触两秒、无落地、漂移<=25 mm。
+
+保留失败：
+--scenario 6：4仍保持，但实际加速度峰值约4.94 rad/s²，判定未合格；原约9.70。
+--scenario 4：四组都未保持；--scenario 7中完整策略也未保持。
+不要仅看成功示例或只看保持率。
+
+控制计算每一步做什么：
+1. 原参考跟踪器先生成七轴名义命令。
+2. 完整复制当前已知仿真状态到独立探针，包含求解器热启动，用当前手指命令预测一步响应。
+3. 若实际离散加速度预测超限，有限差分计算它对七轴力矩的敏感度。
+4. 求一个带约束的局部QP：7个力矩变量+7个非负松弛，尽量少改名义命令。
+5. 用真正的一步积分复核候选。上一步力矩也可作为候选，接触切换时最多重算3次。
+6. 经原有限力矩位置执行器输出。只修改ctrl，从不裁剪真实qpos/qvel或qacc。
+
+QP目标形式：min 0.5||tau-tau_nominal||² + 0.5*100000*||slack||²。
+动力学局部式：a_next(tau)≈a_probe+J_tau*(tau-tau_probe)。
+硬约束为原执行器/控制范围；加速度目标3.8、速度和一步位置限制允许显式松弛。
+内部3.8留出判据4的余量；MPC规划3进一步给跟踪和接触反应留余量。
+这里使用了课程的动力学、反馈、数值线性化、受约束QP/MPC；不是证明了全局稳定的鲁棒MPC。
+
+重要限制：
+过滤器的墙钟耗时和超时已记录，但尚未将其造成的执行延迟计入物理仿真；所有realtime_certified为0。
+新验证完整组有79/15464步超过2 ms。运动约束合格仍属于已知模型、无控制计算延迟的仿真结果。
+预报和实际使用同一已知模型，极小预测误差不代表噪声/模型误差鲁棒性。
+局部QP有松弛和迭代上限，仍可能超限。直接叠加导纳在809/4出现约126.8 rad/s²，不建议据此替换默认控制。
+接触载荷并非逐例下降。810/6法向载荷峰值从68.6增加至209.5 N，仍需缓冲；载荷总和不等于物体净力。
+只测试球体、已知状态和重力来球，尚未覆盖不规则物体、随机外力和实机。
+历史默认控制路径不变，新策略通过实验选项调用。
+
+代码：controllers/discrete_arm_filter.py、controllers/catching_mpc.py；实验：experiments/arm_filter_ablation.py。
+数据和英文图：results/arm_filter_validation；逐例变化：paired_differences.csv；局限：experiment_notes.txt。
+回放：results/arm_filter_replays。缓存绑定代码和场景版本；修改后会自动重新记录并核对历史结果。
+复现实验（项目目录中使用新的输出目录）：
+python -m experiments.arm_filter_ablation --output-dir results/<new-folder> --seeds 809 810
+python -m experiments.arm_filter_report results/<folder>
+
+下一步：统一MPC与缓冲参考，加入实际计算/执行延迟试验，再约束接触净力和载荷。
