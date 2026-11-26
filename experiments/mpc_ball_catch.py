@@ -100,6 +100,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             hand_controller.prepare(model,data,t,nominal)
         if hasattr(reference,"update"):
             reference.update(model,data,t)
+        if hasattr(tracker,"bind_hand_context"):
+            tracker.bind_hand_context(hand_controller,nominal,close,first_contact,accepted,braking,pending)
         tracker.command(data,reference,t)
         velocity=data.qvel.copy()
         mujoco.mj_step(model,data)

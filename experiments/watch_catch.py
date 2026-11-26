@@ -27,12 +27,14 @@ from controllers.sphere_cage import CageConfig,SphereCageClosure
 from controllers.discrete_arm_filter import DiscreteArmFilter
 from controllers.measured_contact_reference import MeasuredContactReference
 from controllers.scheduled_arm_tracker import ScheduledArmTracker
+from controllers.coupled_hand_forecast import CoupledHandForecast
 from experiments.buffer_ablation import VARIANTS
 from experiments.finger_closure_ablation import FINGER_VARIANTS
 from experiments.holding_control_ablation import HOLD_VARIANTS
 from experiments.sphere_cage_ablation import CAGE_VARIANTS
 from experiments.arm_filter_ablation import ARM_VARIANTS
 from experiments.contact_delay_ablation import DELAY_VARIANTS,DELAY_REPLAY_NAMES
+from experiments.hand_forecast_ablation import HAND_FORECAST_VARIANTS,HAND_REPLAY_NAMES
 from experiments.intercept_candidates import scenarios
 from experiments.intercept_tracking import initial
 from experiments.mpc_ball_catch import run_case
@@ -54,9 +56,9 @@ def source_signature(results_dir):
     files+=list((ROOT/"scene_setup/models").rglob("*.xml"))
     files+=[Path(__file__),ROOT/"experiments/mpc_ball_catch.py",ROOT/"experiments/active_ball_catch.py",
             ROOT/"experiments/intercept_tracking.py",ROOT/"experiments/intercept_candidates.py",
-            ROOT/"experiments/contact_delay_ablation.py"]
+            ROOT/"experiments/contact_delay_ablation.py",ROOT/"experiments/hand_forecast_ablation.py"]
     for path in sorted(files):digest.update(str(path.relative_to(ROOT)).encode());digest.update(path.read_bytes())
-    for name in ("trials.csv","solver_times.csv"):
+    for name in ("trials.csv","solver_times.csv","hand_planner.csv"):
         path=results_dir/name
         if path.exists():digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -142,7 +144,15 @@ def make_clip(model,args,name,signature):
     if selection is None:raise ValueError("Scenario must be an existing index 0-19")
     case,kind,p,v=selection
     hand_factory=None;buffered=False;duration=.14;tracker_factory=None;planning_limit=4.;reference_factory=None
-    if args.experiment=="delay":
+    if args.experiment=="hand":
+        _,delay_steps,feedback,limit=next(x for x in HAND_FORECAST_VARIANTS if x[0]==name)
+        hand_rows=read_csv(args.results_dir/"hand_planner.csv") if (args.results_dir/"hand_planner.csv").exists() else []
+        hand_schedule={int(r["plan_step"]):bool(int(r["plan_overrun"])) for r in hand_rows
+            if int(r["seed"])==args.seed and int(r["scenario"])==case and r["strategy"]==name}
+        hand_factory=lambda m,h:SphereCageClosure(m,h,plan_schedule=hand_schedule if schedule is not None else None)
+        tracker_factory=lambda m:CoupledHandForecast(m,delay_steps,feedback,limit)
+        planning_limit=3.
+    elif args.experiment=="delay":
         _,measured,delay_steps,predictive=next(x for x in DELAY_VARIANTS if x[0]==name)
         hand_factory=lambda m,h:SphereCageClosure(m,h)
         tracker_factory=lambda m:ScheduledArmTracker(m,delay_steps,predictive)
@@ -291,7 +301,7 @@ def play(model,args,clips,metas,focus):
                 dofs=[model.joint(f"joint{i}").dofadr[0] for i in range(1,8)]
                 step_accel=float(max(abs((clip["qvel"][index,dofs]-clip["qvel"][index-1,dofs])/
                                         (clip["time"][index]-clip["time"][index-1]))))
-            closure_label="Other joints closure" if args.experiment in ("finger","holding","cage","delay") else "Closure command"
+            closure_label="Other joints closure" if args.experiment in ("finger","holding","cage","delay","hand") else "Closure command"
             labels=f"Strategy\nSeed / case\nPlayback\nTime / contact age\nPhase\n{closure_label}\nOpposed support*\nSum normal load*\nFriction utilization*\nContact slip*\nThumb self-depth*\nOutward ball speed\nActual joint accel\nHold drift\nTrial result\nConstraint-qualified"
             values=(f'{meta["strategy"]}\n{args.seed} / {args.scenario}\n'
                 f'{"PAUSED" if paused else "Playing"} {speed:.2f}x\n{clip["time"][index]:.3f} s / '
@@ -304,8 +314,11 @@ def play(model,args,clips,metas,focus):
             if args.experiment=="delay":
                 latency=next(r[2] for r in DELAY_VARIANTS if r[0]==meta["strategy"])*model.opt.timestep*1000.
                 instructions+=f"\nInjected arm command delay: {latency:.0f} ms; fingers update each 2 ms\nRuntime overruns need additional validation"
+            if args.experiment=="hand":
+                _,latency,feedback,limit=next(r for r in HAND_FORECAST_VARIANTS if r[0]==meta["strategy"])
+                instructions+=f"\nArm delay: {latency*2} ms; hand forecast: {'feedback' if feedback else 'frozen'}\nFilter target: {limit:.1f} rad/s2; actual criterion: 4.0"
             load_text="\n".join(f"{label}: {value:.2f} N" for label,value in zip(LABELS,clip["loads"][index]))
-            if args.experiment in ("finger","holding","cage","arm","delay"):
+            if args.experiment in ("finger","holding","cage","arm","delay","hand"):
                 load_text+="\n\nMiddle joints: angle / speed"
                 for label,joint in zip(("F1","F2","F3","Thumb"),(2,6,10,14)):
                     j=model.joint(f"hand/{joint}")
@@ -330,8 +343,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed",type=int,default=805)
     parser.add_argument("--scenario",type=int,default=0)
-    parser.add_argument("--experiment",choices=["buffer","finger","holding","cage","arm","delay"],default="buffer")
-    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS]+[x[0] for x in CAGE_VARIANTS]+[x[0] for x in ARM_VARIANTS]+[x[0] for x in DELAY_VARIANTS])),default="compare")
+    parser.add_argument("--experiment",choices=["buffer","finger","holding","cage","arm","delay","hand"],default="buffer")
+    parser.add_argument("--strategy",choices=sorted(set(["compare"]+[x[0] for x in VARIANTS]+[x[0] for x in FINGER_VARIANTS]+[x[0] for x in HOLD_VARIANTS]+[x[0] for x in CAGE_VARIANTS]+[x[0] for x in ARM_VARIANTS]+[x[0] for x in DELAY_VARIANTS]+[x[0] for x in HAND_FORECAST_VARIANTS])),default="compare")
     parser.add_argument("--speed",type=float,default=.25)
     parser.add_argument("--paused",action="store_true")
     parser.add_argument("--loop",action="store_true")
@@ -344,29 +357,30 @@ def main():
     args=parser.parse_args()
     result_folders=dict(buffer="contact_buffer_validation",finger="finger_closure_validation",holding="holding_control_validation",cage="sphere_cage_clearance_validation",arm="arm_filter_validation",delay="contact_delay_final")
     replay_folders=dict(buffer="interactive_replays",finger="finger_replays",holding="holding_replays",cage="cage_clearance_replays",arm="arm_filter_replays",delay="contact_delay_replays")
+    result_folders["hand"]="hand_forecast_validation";replay_folders["hand"]="hand_forecast_replays"
     if args.results_dir is None:args.results_dir=ROOT/"results"/result_folders[args.experiment]
     if args.cache_dir is None:args.cache_dir=ROOT/"results"/replay_folders[args.experiment]
     if not np.isfinite(args.speed) or args.speed<=0:parser.error("Speed must be positive")
     if not 0<=args.scenario<20:parser.error("Scenario must be between 0 and 19")
-    variants=DELAY_VARIANTS if args.experiment=="delay" else ARM_VARIANTS if args.experiment=="arm" else CAGE_VARIANTS if args.experiment=="cage" else HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
-    allowed_seeds=(810,811) if args.experiment=="delay" else (809,810) if args.experiment=="arm" else (807,809) if args.experiment=="cage" else (806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
+    variants=HAND_FORECAST_VARIANTS if args.experiment=="hand" else DELAY_VARIANTS if args.experiment=="delay" else ARM_VARIANTS if args.experiment=="arm" else CAGE_VARIANTS if args.experiment=="cage" else HOLD_VARIANTS if args.experiment=="holding" else FINGER_VARIANTS if args.experiment=="finger" else VARIANTS
+    allowed_seeds=(811,812) if args.experiment=="hand" else (810,811) if args.experiment=="delay" else (809,810) if args.experiment=="arm" else (807,809) if args.experiment=="cage" else (806,807) if args.experiment=="holding" else (805,806) if args.experiment=="finger" else (803,805)
     if args.strategy=="compare" and args.seed not in allowed_seeds:
         parser.error(f"Recorded paired comparison supports seeds {allowed_seeds}. For a new launch choose one --strategy explicitly.")
     if args.strategy!="compare" and args.strategy not in [x[0] for x in variants]:parser.error("Strategy does not belong to this experiment")
     model=build_scene("ball");rest=initial(model)
     palm=rest.body("hand/palm_lower");focus=palm.xpos+palm.xmat.reshape(3,3)@np.array([0.,-.04,-.04])
-    names=list(DELAY_REPLAY_NAMES) if args.strategy=="compare" and args.experiment=="delay" else [x[0] for x in variants] if args.strategy=="compare" else [args.strategy]
+    names=list(HAND_REPLAY_NAMES) if args.strategy=="compare" and args.experiment=="hand" else list(DELAY_REPLAY_NAMES) if args.strategy=="compare" and args.experiment=="delay" else [x[0] for x in variants] if args.strategy=="compare" else [args.strategy]
     clips=[];metas=[];signature=source_signature(args.results_dir)
     for name in names:
         clip,meta=make_clip(model,args,name,signature);clips.append(clip);metas.append(meta)
     if args.strategy=="compare":
         # 轻度预成形改变接触前手形，只在拥有相同预成形的组之间核对首触。
-        comparisons=[] if args.experiment=="delay" else [(1,2)] if args.experiment in ("cage","arm") else [(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
+        comparisons=[] if args.experiment in ("delay","hand") else [(1,2)] if args.experiment in ("cage","arm") else [(0,1),(2,3)] if args.experiment=="finger" else [(0,i) for i in range(1,len(metas))]
         for left,right in comparisons:
             for key in ("first_contact_s","first_normal_relative_speed_m_s","plans_applied"):
                 if not np.isclose(metas[right]["outcome"][key],metas[left]["outcome"][key],atol=1e-9,rtol=1e-9):
                     raise ValueError(f"Paired pre-contact mismatch: {key}")
-        print("Historical delay replays verified; different latency can change first contact." if args.experiment=="delay" else "Paired pre-contact checks passed (arm filter, planning headroom and preshape can intentionally change pre-contact motion).",flush=True)
+        print("Historical delayed trials verified; policies can change first contact." if args.experiment in ("delay","hand") else "Paired pre-contact checks passed (arm filter, planning headroom and preshape can intentionally change pre-contact motion).",flush=True)
     configure_display(model)
     if args.snapshot:snapshot(model,args,clips[0],metas[0],focus)
     elif not args.record_only:play(model,args,clips,metas,focus)

@@ -1,0 +1,17 @@
+{
+  "trials": 144,
+  "arrivals": 24,
+  "strategies": 6,
+  "queue_and_snapshot_checked_steps": 165426,
+  "actual_acceleration_aggregates_checked": 144,
+  "history_prefix_checks": 12,
+  "historical_full_matches": 10,
+  "historical_comparisons": 12,
+  "actual_state_clipping": false,
+  "fixed_arm_delay_charged": true,
+  "wall_clock_overruns_charged": false,
+  "realtime_certified": false,
+  "verified_replays": 12,
+  "replay_source_signature": "3678f814fef897900dc0102c7b8437a47653bab092ddf4670b25191f2dcef52f",
+  "recorded_thumb_planner_calls": 1133
+}

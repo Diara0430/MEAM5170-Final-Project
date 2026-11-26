@@ -1,0 +1,65 @@
+手指反馈与接触事件预测：本轮运行说明
+
+先看新验证组812/3：原来抓住但加速度略超限，加入手指反馈预测后通过。
+& 'D:\test code\.venv\Scripts\python.exe' 'C:\Users\gaoqi\Documents\GitHub\MEAM5170-Final-Project\experiments\watch_catch.py' --experiment hand --seed 812 --scenario 3 --speed 0.25 --loop
+
+默认四组按键：
+1 frozen_2ms：机械臂有2 ms延迟，预测中冻结手指ctrl，滤波目标3.8。
+2 coupled_2ms：同样延迟，预测中推进手指控制、接触反馈和首触事件，目标仍3.8。
+3 coupled_margin_2ms：在2上把滤波目标收紧为3.5，保留原实际判据4。
+4 coupled_margin_4ms：同3，但真实机械臂指令延迟4 ms。
+Space暂停，[]逐2 ms物理步，R重播，C跳到接触前，T切换相机。
+
+完整试验还包含frozen_margin_2ms和frozen_4ms，用于区分余量与联合预测的作用。
+可用 --strategy frozen_margin_2ms 或 --strategy frozen_4ms 单独观察。
+
+关键案例：
+812/3：1保持但实际加速度约4.049，2约3.800并通过，原4阈值不变。
+812/5：预测准确但实际加速度仍约9，均未通过；用于观察优化/约束问题。
+812/1：1保持，2掉落，3保持，4仍掉落；说明预测更准不等于保持一定改善。
+811/9：上一轮约4.033的轻微超限在2中修复。
+
+144次对照=24条近距离来球×6策略，811开发，812在设计固定后检查。
+新验证812：
+策略                 保持/12  同时满足原运动约束/12
+frozen_2ms              8       5
+frozen_margin_2ms       7       5
+coupled_2ms             7       5
+coupled_margin_2ms      8       6
+frozen_4ms              7       4
+coupled_margin_4ms      8       5
+更紧余量不是普遍更好；开发组811的coupled_margin_2ms没有提高运动约束通过数。
+
+预测每步做什么：
+1. 复制当前手指控制器的小型状态和承载反馈，在独立MjData中工作。
+2. 按已知机械臂指令队列传播；手指按同一闭合曲线计算下一步ctrl。
+3. 用模型预测的接触载荷更新预测副本的柔顺性；预测首触后的闭指/制动事件。
+4. 使用当前已知的待生效MPC参考；不能访问未来尚未计算的计划。
+5. 在交付时刻的预测状态上计算受约束力矩，经真实延迟队列等待生效。
+6. 核对真实手指控制状态、日志、探针和真实手指ctrl未被预测修改。
+没有机器学习，没有修改摩擦、质量或碰撞参数，没有裁剪实际qpos/qvel。
+新拇指IK重规划在短时预测中不重新计算，因此仍可能出现罕见预测误差。
+
+重要发现与限制：
+很小的预测误差来自同一个已知MuJoCo模型、精确状态与确定性控制；不能当作未知模型/实机的鲁棒性证明。
+预测准确仍可能遇到QP松弛、数值失败、迭代上限或实际关节越界，需要单独处理拒绝/降级动作。
+固定2/4 ms只施加于机械臂ctrl，手指每2 ms更新；真实墙钟超时没有额外加入固定延迟，realtime_certified仍为0。
+联合预测增加计算量；部分步超过注入的延迟预算。逐步wall_ms和over_budget已保存。
+载荷没有全局上限，仍仅覆盖球体、已知状态和重力来球。
+原保持判据仍为接触300 ms后连续手指接触两秒、无落地、漂移<=25 mm；实际速度<=1、加速度<=4并保留原限位。
+
+复现补充：旧811/4的漂移约22.5 mm，本轮相同冻结控制逻辑和MPC时序约6.11 mm；晚期拇指IK按墙钟耗时决定是否采用，但旧日志没有该决定。
+本轮把所有晚期规划决定保存到hand_planner.csv；新回放严格重用这些决定并核对结果。
+旧历史保持阶段的差异保存在baseline_history_audit.csv，新的对照均以本轮重跑基线为准。
+
+文件：
+controllers/coupled_hand_forecast.py：手指状态副本、短时反馈传播、首触预测。
+controllers/scheduled_arm_tracker.py：延迟队列与预测钩子。
+experiments/hand_forecast_ablation.py：六组对照；hand_forecast_report.py：核对、配对与英文作图。
+results/hand_forecast_validation：原始CSV、逐种子时序、晚期手指规划决定、图表与说明。
+results/hand_forecast_replays：保存成功、超限与掉落案例。
+
+重新运行（项目目录中使用新输出目录）：
+python -m experiments.hand_forecast_ablation --output-dir results/<new-folder> --seeds 811 812
+python -m experiments.hand_forecast_report results/<folder>
+下一步：区分QP不可行与数值失败，设计拒绝/降级动作；之后再加入真实计算调度和模型误差测试。

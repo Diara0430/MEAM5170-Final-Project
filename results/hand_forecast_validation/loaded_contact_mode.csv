@@ -1,0 +1,13 @@
+﻿seed,strategy,loaded_capture_steps,loaded_capture_mode_match
+811,frozen_2ms,1356,0.9985250737463127
+811,frozen_margin_2ms,1357,0.9963154016212233
+811,coupled_2ms,1357,1.0
+811,coupled_margin_2ms,1353,1.0
+811,frozen_4ms,1269,0.9929078014184397
+811,coupled_margin_4ms,1329,1.0
+812,frozen_2ms,1339,0.9977595220313666
+812,frozen_margin_2ms,1318,0.9984825493171472
+812,coupled_2ms,1324,1.0
+812,coupled_margin_2ms,1347,1.0
+812,frozen_4ms,1320,0.996969696969697
+812,coupled_margin_4ms,1324,1.0

@@ -38,10 +38,11 @@ class CageConfig:
 
 
 class SphereCageClosure(JointAwareClosure):
-    def __init__(self,model,hand,cage_mode="preshape",cage_config=None):
+    def __init__(self,model,hand,cage_mode="preshape",cage_config=None,plan_schedule=None):
         super().__init__(model,hand,"compliant")
         if cage_mode not in ("position","force","preshape","clearance"):raise ValueError("Unknown cage mode")
         self.cage_mode=cage_mode;self.cage_config=CageConfig() if cage_config is None else cage_config
+        self.plan_schedule=plan_schedule # 可选：严格重放真实实验记录的晚期拇指规划超时决策。
         c=self.cage_config
         if not np.all(np.isfinite(list(vars(c).values()))) or min(vars(c).values())<=0:raise ValueError("Positive finite cage parameters required")
         self.thumb_qadr=[model.joint(f"hand/{i}").qposadr[0] for i in range(12,16)]
@@ -165,9 +166,13 @@ class SphereCageClosure(JointAwareClosure):
                 if best is None or score<best[0]:best=(score,proposed.copy())
                 break
         wall=time.perf_counter()-start
-        info=dict(plan_called=1,plan_failed=int(best is None),plan_overrun=int(wall>c.period_s),
+        step=round(data.time/model.opt.timestep);measured_overrun=wall>c.period_s
+        if self.plan_schedule is not None and step not in self.plan_schedule:raise ValueError("Missing recorded thumb-planner decision")
+        overrun=measured_overrun if self.plan_schedule is None else self.plan_schedule[step]
+        info=dict(plan_called=1,plan_failed=int(best is None),plan_overrun=int(overrun),plan_step=step,
+            plan_measured_overrun=int(measured_overrun),plan_decision_source="measured" if self.plan_schedule is None else "recorded",
             plan_ms=1000.*wall,gap_mm=1000.*smallest_gap,collision_rejections=rejected)
-        return None if best is None or wall>c.period_s else best[1],info
+        return None if best is None or overrun else best[1],info
 
     def command(self,model,data,elapsed):
         if self.index_start is None:self.index_start=self.shape[:4].copy()
@@ -193,7 +198,8 @@ class SphereCageClosure(JointAwareClosure):
         if self.started is None:
             if not early_preshape and self.support_time<c.support_s:return
             self.started=elapsed;self.qref=q.copy();self.vref=np.zeros(4);self.goal=q.copy();self.anchor=q.copy()
-        info=dict(plan_called=0,plan_failed=0,plan_overrun=0,plan_ms=0.,gap_mm=0.,collision_rejections=0)
+        info=dict(plan_called=0,plan_failed=0,plan_overrun=0,plan_step=-1,plan_measured_overrun=0,
+            plan_decision_source="none",plan_ms=0.,gap_mm=0.,collision_rejections=0)
         loaded=self.loaded_time>=.006
         segment_done=self.segment_start is None or elapsed>=self.segment_start+self.segment_duration-1e-10
         if not early_preshape and not loaded and self.unloaded_time>=.02 and segment_done and elapsed-self.last_plan>=c.period_s-1e-10:
