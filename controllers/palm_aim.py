@@ -49,7 +49,16 @@ class PalmAimRecovery(TimingMPC):
         # This translates only the commanded palm center. The ball track used by
         # the torque preview and by the plant is unchanged.
         shifted = bool(np.any(aim))
-        plan, info = super().solve(data, p+aim if shifted else p, v, now, previous, durations=durations)
+        adjust = getattr(self.contact_selector, "contact_offset", None)
+        spot = None
+        if adjust is not None and self.center_delivered:
+            spot = adjust(data, previous, now)
+        target = p+aim if shifted else p
+        if spot is not None:
+            target = target+spot
+        plan, info = super().solve(data, target, v, now, previous, durations=durations)
+        if plan is not None and spot is not None:
+            plan.impact_offset = True
         self.pending_aim = (plan, shifted) if plan is not None else None
         info["wall_s"] = time.perf_counter()-started
         return plan, info
