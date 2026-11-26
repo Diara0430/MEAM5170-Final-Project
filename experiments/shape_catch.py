@@ -14,6 +14,8 @@ from controllers.fixed_point_trim import FixedPointTrim
 from controllers.impact_spot import ImpactSpot
 from controllers.intercept_impact import InterceptImpact
 from controllers.short_impact import ShortImpact
+from controllers.wrist_onset import WristLeverAim
+from controllers.wrist_preload import WristPreload
 from controllers.velocity_selection import VelocitySelection
 from experiments.contact_joint_replay import ContactTrace
 from experiments.follow_through_ablation import save_csv
@@ -103,7 +105,7 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
         so["approach"] = CatchApproach(fraction=0. if method=="stop" else .30, nonlinear=method=="nonlinear")
     if method in ("rank", "prepare"):
         so["velocity_selection"] = VelocitySelection(prepare_early=method=="prepare")
-    selector = {"extent": BoxExtent, "trim": FixedPointTrim, "short": ShortImpact,
+    selector = {"axis_lever": WristLeverAim, "extent": BoxExtent, "trim": FixedPointTrim, "short": ShortImpact,
                 "spot": ImpactSpot, "inertia": partial(InterceptImpact, method="inertia"),
                 "preview": partial(InterceptImpact, method="preview")}.get(method)
     observer = hand = None
@@ -128,9 +130,19 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
         trace.record(*args)
         if record_frame is not None:
             record_frame(*args)
+    options = {}
+    tracker = None
+    if method == "axis_preload":
+        def make_tracker(*args, **kwargs):
+            nonlocal tracker
+            tracker = WristPreload(*args, **kwargs)
+            return tracker
+        options["tracker_type"] = make_tracker
     row = compare(model, seed, case, p, v, profile, "track_reserve", True,
                   record_frame=record, selector_factory=selector, sensor_type=sensor,
-                  rule_name="stable4" if method=="early_lock" else "rolling", trial_options=so)
+                  rule_name="stable4" if method=="early_lock" else "rolling", trial_options=so, **options)
+    if tracker is not None:
+        row.update(tracker.summary())
     quat, omega = so["launch_rotation"]
     return dict(**row, **trace.summary(row), shape="box", method=method, grasp=grasp,
                 box_width_mm=None if hand is None or hand.width is None else 1000*hand.width,

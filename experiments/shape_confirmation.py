@@ -42,7 +42,8 @@ def main():
     winner = choose(args.screen)
     options = list(dict.fromkeys([("ball", "baseline", "original"), ("box", "center", "original"),
                                   ("box", "pose", "original"), ("box", winner, "original"),
-                                  ("box", winner, "aperture"), ("box", winner, "aperture_slip")]))
+                                  ("box", winner, "aperture"), ("box", winner, "aperture_slip"),
+                                  ("box", "axis_lever", "original"), ("box", "axis_preload", "original")]))
     models = {shape: build_scene(shape) for shape in ("box", "ball")}
     center = capture_center(initial(models["box"]))
     rows = []
