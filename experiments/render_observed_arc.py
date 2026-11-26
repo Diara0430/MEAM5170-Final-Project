@@ -20,7 +20,8 @@ def dot(scene, xyz, radius, color):
 
 
 def render(sample, output):
-    model = build_scene("ball")
+    shape = sample.get("shape", "ball")
+    model = build_scene(shape)
     model.vis.headlight.ambient[:] = [.38, .38, .38]
     model.vis.headlight.diffuse[:] = [.60, .60, .60]
     data = mujoco.MjData(model)
@@ -91,7 +92,7 @@ def render(sample, output):
             elif prediction is not None:
                 phase = "Predicting flight"
             else:
-                phase = "Observing ball"
+                phase = f"Observing {shape}"
             draw.text((12, 8), f"{now:.2f} s   {phase}", fill="white", font=font)
             for x, label, color in [(12, "Observations", "#32b8ff"), (153, "Forecast", "#f6d640"),
                                     (269, "Selected point", "#f864bc"), (449, "Palm center", "#45e98a")]:

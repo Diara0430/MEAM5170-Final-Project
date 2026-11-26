@@ -54,11 +54,17 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None, *,
+                 planning_speed_limit=1., orientation_tolerance=.03, contact_selector=None):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
             raise ValueError("Positive finite planning acceleration limit required")
+        if not (0 < planning_speed_limit <= 1 and 0 < orientation_tolerance <= .15):
+            raise ValueError("Invalid planning speed limit or orientation tolerance")
+        self.contact_selector = contact_selector
+        self.planning_speed_limit = planning_speed_limit
+        self.orientation_tolerance = orientation_tolerance
         self.model=model
         self.checker=InterceptPlanner(model,data)
         self.match=velocity_match
@@ -80,7 +86,7 @@ class CatchingMPC:
             return np.hstack((.5*t*t*np.eye(7),np.zeros((7,7)))),np.hstack((t*np.eye(7),np.zeros((7,7))))
         return np.hstack((h*(t-.5*h)*np.eye(7),.5*(t-h)**2*np.eye(7))),np.hstack((h*np.eye(7),(t-h)*np.eye(7)))
 
-    def solve(self,data,p,v,now,previous,durations=None):
+    def solve(self,data,p,v,now,previous,durations=None, *, fixed_target=None, speed_request=None):
         start=time.perf_counter()
         m=self.model
         ck=self.checker
@@ -105,13 +111,19 @@ class CatchingMPC:
         bias=data.qfrc_bias[ck.dofs]-data.qfrc_passive[ck.dofs]
         torque_map=sparse.block_diag((mass,mass)).toarray()
         best=None;best_score=float("inf")
+        shortlist = [] if self.contact_selector is not None else None
         solved=0
         if durations is None:
             durations = (.12,.18,.24,.30,.36,.42,.48,.54,.60,.66)
+        adjust_target = getattr(self.contact_selector, "adjust_target", None)
         for duration in durations:
             flight_time=lag+duration
             point=p+v*flight_time+.5*m.opt.gravity*flight_time**2
             incoming=v+m.opt.gravity*flight_time
+            if fixed_target is not None:
+                point, incoming = fixed_target
+            elif adjust_target is not None:
+                point = adjust_target(point, self.orientation[:, 2], now + flight_time)
             if point[2]<ck.radius+.005 or np.linalg.norm(point)>ck.reach_bound+.002:
                 continue
             if incoming@self.orientation[:,2]<.05 or np.linalg.norm(point-capture0)>.25:
@@ -154,11 +166,17 @@ class CatchingMPC:
             for t in np.linspace(duration/4,duration,4):
                 qm,vm=self.maps(t,h)
                 constraint.extend((qm,vm))
-                lower.extend((ck.lower-q0-v0*t,-np.ones(7)-v0))
-                upper.extend((ck.upper-q0-v0*t,np.ones(7)-v0))
+                lower.extend((ck.lower-q0-v0*t,-self.planning_speed_limit-v0))
+                upper.extend((ck.upper-q0-v0*t,self.planning_speed_limit-v0))
             constraint.extend((a_pos,a_rot))
-            lower.extend((b_pos-.005,b_rot-.03))
-            upper.extend((b_pos+.005,b_rot+.03))
+            lower.extend((b_pos-.005,b_rot-self.orientation_tolerance))
+            upper.extend((b_pos+.005,b_rot+self.orientation_tolerance))
+            if speed_request is not None:
+                projection, requested = speed_request
+                constraint.append((projection @ vmap).reshape(1,-1))
+                center_speed = requested - projection @ v0
+                lower.append(np.array([center_speed-.015]))
+                upper.append(np.array([center_speed+.015]))
             a=np.vstack(constraint);lo=np.concatenate(lower);hi=np.concatenate(upper)
             solver=osqp.OSQP()
             solver.setup(P=sparse.csc_matrix(2*matrix),q=2*linear,A=sparse.csc_matrix(a),l=lo,u=hi,
@@ -181,7 +199,7 @@ class CatchingMPC:
             # 五点非线性运动学复核，不把线性化终点误差当作实际位置误差。
             for fraction in np.linspace(0,1,5):
                 q,vel,_=plan.reference(plan.observation_time+duration*fraction)
-                if min(np.r_[q-ck.lower,ck.upper-q])<0 or max(abs(vel))>1.0002:
+                if min(np.r_[q-ck.lower,ck.upper-q])<0 or max(abs(vel))>self.planning_speed_limit+.0002:
                     valid=False;break
                 probe.qpos[ck.qadr]=q
                 mujoco.mj_forward(m,probe)
@@ -193,6 +211,14 @@ class CatchingMPC:
             actual=end.xpos+end.xmat.reshape(3,3)@ck.local_capture
             if np.linalg.norm(actual-point)>.012:
                 continue
+            if speed_request is not None:
+                end_jac = np.empty_like(jp)
+                mujoco.mj_jac(m, probe, end_jac, None, actual, ck.palm)
+                _, endpoint_v, _ = plan.reference(plan.intercept_time)
+                achievable = float((incoming / incoming_speed) @ end_jac[:, ck.dofs] @ endpoint_v)
+                if abs(achievable - requested) > .025:
+                    continue
+                plan.predicted_match = achievable / incoming_speed
             solved+=1
             score=sum(w*float(np.sum((a@x-b)**2)) for a,b,w in weights)+.002*float(x@x)+.1*duration
             if self.velocity_selection is not None:
@@ -207,8 +233,17 @@ class CatchingMPC:
                 plan.predicted_normal_speed = float(normal @ (incoming - hand_velocity))
                 score = self.velocity_selection.score(
                     incoming, hand_velocity, normal, actual-point, stop_margin)
+            if shortlist is not None:
+                shortlist.append((score, plan))
             if score<best_score:
                 best_score=score;best=plan;self.last_solution=x.copy()
+        if shortlist is not None and len(shortlist) >= 2:
+            shortlist.sort(key=lambda item: item[0])
+            selected = self.contact_selector.choose(data, now, shortlist[0][1], shortlist[1][1],
+                                                    start+self.period)
+            if selected is not best:
+                best = selected
+                self.last_solution = np.concatenate((best.first,best.second))
         return best,dict(wall_s=time.perf_counter()-start,feasible_candidates=solved)
 
 

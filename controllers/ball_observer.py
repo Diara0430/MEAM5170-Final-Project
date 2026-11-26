@@ -29,7 +29,7 @@ class BallEstimate:
 
 class BallObserver:
     """Receive one world-frame measurement per camera tick; fit only delivered frames."""
-    def __init__(self, gravity, seed, noise_m=.002, latency_s=.020, min_frames=8, window=16):
+    def __init__(self, gravity, seed, noise_m=.002, latency_s=.020, min_frames=8, window=16, flight_fit=None):
         self.gravity = np.array(gravity, dtype=float)
         if (self.gravity.shape != (3,) or not np.isfinite(self.gravity).all()
                 or self.gravity[2] >= 0 or not np.isfinite([noise_m, latency_s]).all()
@@ -38,6 +38,7 @@ class BallObserver:
         self.rng = np.random.default_rng(seed)
         self.noise_m = noise_m
         self.latency_s = latency_s
+        self.flight_fit = flight_fit
         self.min_frames = min_frames
         self.pending = deque()
         self.frames = deque(maxlen=window)
@@ -59,9 +60,13 @@ class BallObserver:
         # timestamps keeps the slope well-conditioned and accounts for sensor latency.
         dt = np.array([t - now for t, _ in self.frames])
         y = np.array([p for _, p in self.frames]) - 0.5 * dt[:, None]**2 * self.gravity
-        centered = dt - dt.mean()
-        velocity = (centered @ y) / (centered @ centered)
-        self.estimate = BallEstimate(now, y.mean(axis=0) - dt.mean() * velocity, velocity, self.gravity)
+        if self.flight_fit is None:
+            centered = dt - dt.mean()
+            velocity = (centered @ y) / (centered @ centered)
+            position = y.mean(axis=0) - dt.mean() * velocity
+        else:
+            position, velocity = self.flight_fit.fit(now, dt, y, self.noise_m)
+        self.estimate = BallEstimate(now, position, velocity, self.gravity)
         if self.first_estimate is None:
             self.first_estimate = self.estimate
         return self.estimate

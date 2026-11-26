@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from controllers.ball_observer import BallObserver
+from controllers.catching_mpc import CatchingMPC
 from controllers.catch_approach import CatchApproach
 from controllers.contact_preview import ContactPreviewFilter
 from controllers.follow_through import FollowThrough
@@ -17,8 +18,11 @@ from experiments.velocity_selection import ImpactMeasurement
 from scene_setup.scene import build_scene
 
 
-def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter):
-    observer = BallObserver(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
+def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter,
+          planner_factory=CatchingMPC, record_frame=None, observer_factory=BallObserver,
+          launch_rotation=None, approach=None, heights=None, velocity_selection=None,
+          hand_controller_factory=SphereCageClosure):
+    observer = observer_factory(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
     tracker = tracker_factory(model, observer, preview)
     impact = ImpactMeasurement(model)
     peak_20 = 0.
@@ -32,6 +36,8 @@ def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter
         if previous_arm_v is not None and info["first_contact_s"] is None:
             peak_flight = max(peak_flight, float(np.max(np.abs(state-previous_arm_v))) / model.opt.timestep)
         previous_arm_v = state
+        if record_frame is not None:
+            record_frame(model, data, info, observer, tracker)
 
     def touch(model, data, t, contact, close, previous, ref):
         nonlocal peak_20, capture_error, precursor_ms
@@ -52,9 +58,11 @@ def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter
             peak_20 = max(peak_20, float(np.max(np.abs(accel))))
 
     result, _, _ = run_case(model, p, v, case, "long_arc", seed, "mpc_match",
-        tracker_factory=lambda m: tracker, hand_controller_factory=SphereCageClosure,
-        mpc_acceleration_limit=3., follow_through=FollowThrough(), approach=CatchApproach(fraction=.30),
-        observer=observer, height_offsets=STRATEGIES["seven_heights"], step_observer=touch, frame_observer=flight)
+        tracker_factory=lambda m: tracker, hand_controller_factory=hand_controller_factory,
+        mpc_acceleration_limit=3., follow_through=FollowThrough(), approach=approach if approach is not None else CatchApproach(fraction=.30),
+        observer=observer, height_offsets=STRATEGIES["seven_heights"] if heights is None else heights,
+        launch_rotation=launch_rotation, velocity_selection=velocity_selection, step_observer=touch, frame_observer=flight,
+        planner_factory=planner_factory)
     times = tracker.near_times_ms
     result.update(policy="projected_contact" if preview else "robot_only",
                   peak_contact20_accel=peak_20 if tracker.touched else None,

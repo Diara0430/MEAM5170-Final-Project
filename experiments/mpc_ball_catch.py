@@ -29,7 +29,8 @@ from scene_setup.scene import build_scene
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
              allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None,approach=None,
-             observer=None, height_offsets=(0.,), velocity_selection=None):
+             observer=None, height_offsets=(0.,), velocity_selection=None, planner_factory=CatchingMPC,
+             launch_rotation=None):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
     if buffer_factory is not None and follow_through is not None:
@@ -39,11 +40,17 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
     if observer is not None and (mode == "static_predict" or (approach and approach.entry)):
         raise ValueError("Observed trials use tactile closure")
     data=launch(model,p,v)
+    if launch_rotation is not None:
+        quat, angular_velocity = launch_rotation
+        data.joint("flight").qpos[3:] = quat
+        data.joint("flight").qvel[3:] = angular_velocity
+        mujoco.mj_forward(model, data)
+    rotation_track = getattr(observer, "rotation_track", None)
     tracker=ArmReferenceTracker(model) if tracker_factory is None else tracker_factory(model)
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
-    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach,
+    mpc=planner_factory(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach,
                     velocity_selection=velocity_selection)
     entry = EntryTrigger(model, mpc.checker) if approach is not None and approach.entry else None
     last_applied = None
@@ -100,6 +107,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         control_data = data
         if observer is not None and first_contact is None:
             if camera_tick:
+                if rotation_track is not None:
+                    rotation_track.sample(t, data.joint("flight").qpos[3:])
                 estimate = observer.sample(t, data.joint("flight").qpos[:3])
                 if estimate is not None:
                     crossing = estimate.descending_crossing(home_height)
@@ -123,6 +132,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
             if pending is not None and t>=pending.observation_time-1e-10:
                 reference=pending;pending=None;accepted=True;applied+=1
                 last_applied = reference
+                if hasattr(mpc, "on_applied"):
+                    mpc.on_applied(reference, t)
                 if first_applied is None:
                     first_applied, first_application_time = reference, t
             if not braking and first_contact is None and camera_tick and nominal is not None and t < nominal + .25:

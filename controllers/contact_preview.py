@@ -44,6 +44,9 @@ class ContactPreviewFilter(DiscreteArmFilter):
             mujoco.mj_copyData(view, self.model, data)
             view.joint("flight").qpos[:3] = p
             view.joint("flight").qvel[:3] = v
+            pose = getattr(self.observer, "preview_rotation", None)
+            if pose is not None:
+                pose.write(view, t)
             mujoco.mj_forward(self.model, view)
             self.apply_filter(view, plan, t)
             data.ctrl[self.ids] = view.ctrl[self.ids]

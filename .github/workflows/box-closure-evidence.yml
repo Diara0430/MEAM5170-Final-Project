@@ -1,0 +1,51 @@
+name: Preserve physical cuboid contacts and plot matched outcomes
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['.github/workflows/box-closure-evidence.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install matplotlib numpy
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 45883345490
+          github-token: ${{ github.token }}
+          pattern: trials-*
+          path: archived
+      - run: python -m experiments.plot_box_contact_window archived evidence
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-physical-frames
+          path: evidence
+  export:
+    needs: pack
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        file: ['frames_normal.csv.gz','frames_noisy.csv.gz','frames_corrected.csv.gz','paired_contact.svg','example_frames.csv']
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-physical-frames
+          path: evidence
+      - shell: python
+        env:
+          FILE: ${{ matrix.file }}
+        run: |
+          import base64, hashlib, os
+          from pathlib import Path
+          p = Path('evidence')/os.environ['FILE']
+          raw = p.read_bytes()
+          print('EVIDENCE',p.name,len(raw),hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest())
+          encoded = base64.b64encode(raw).decode()
+          for i in range(0,len(encoded),2048):
+              print('DATA',encoded[i:i+2048])

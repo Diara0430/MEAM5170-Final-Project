@@ -1,0 +1,28 @@
+name: Paired wrist impact guard
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/wrist_impact.py', 'experiments/wrist_impact.py', '.github/workflows/wrist-impact.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        seed: [861, 862, 863, 901, 902, 903]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.wrist_impact --seed ${{ matrix.seed }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wrist-${{ matrix.seed }}
+          path: data/
+      - run: cat data/trials.csv
