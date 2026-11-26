@@ -33,3 +33,12 @@ class SettledInterceptMPC(TimingMPC):
                 return True,metrics
         self.gate_rejections += 1
         return False,None
+
+
+class EarlyStableMPC(TimingMPC):
+    """Lock a stable prediction only while a full 350 ms would remain on delivery."""
+    def _gate(self, now, plan, incoming):
+        remaining_on_delivery = plan.intercept_time - (now + self.period)
+        if remaining_on_delivery < .350 - 1e-9:
+            return False, None
+        return super()._gate(now, plan, incoming)

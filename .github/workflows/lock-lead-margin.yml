@@ -1,0 +1,28 @@
+name: Test a minimum remaining time at intercept lock
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['controllers/settled_intercept.py', 'experiments/settled_intercept.py', '.github/workflows/lock-lead-margin.yml']
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [normal, noisy, corrected]
+        seed: [961, 962, 963]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.settled_intercept --seed ${{ matrix.seed }} --profile ${{ matrix.profile }} --lead-study --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lead-margin-${{ matrix.seed }}-${{ matrix.profile }}
+          path: data
+      - run: cat data/trials.csv
