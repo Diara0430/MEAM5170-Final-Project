@@ -30,6 +30,9 @@ METHODS = ("center", "pose", "extent", "single", "early_lock", "nonlinear", "sto
            "trim", "short", "spot", "inertia", "preview", "rank", "prepare")
 
 
+TRANSFER_METHODS = ("axis_lever", "axis_lever_shadow", "axis_preload")
+
+
 class BoxObserver(StudyTrack):
     def __init__(self, *args, seed, case, profile, use_pose, **kwargs):
         super().__init__(*args, seed=seed, case=case, profile=profile, **kwargs)
@@ -105,7 +108,8 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
         so["approach"] = CatchApproach(fraction=0. if method=="stop" else .30, nonlinear=method=="nonlinear")
     if method in ("rank", "prepare"):
         so["velocity_selection"] = VelocitySelection(prepare_early=method=="prepare")
-    selector = {"axis_lever": WristLeverAim, "extent": BoxExtent, "trim": FixedPointTrim, "short": ShortImpact,
+    selector = {"axis_lever": WristLeverAim, "axis_lever_shadow": partial(WristLeverAim, shadow=True),
+                "extent": BoxExtent, "trim": FixedPointTrim, "short": ShortImpact,
                 "spot": ImpactSpot, "inertia": partial(InterceptImpact, method="inertia"),
                 "preview": partial(InterceptImpact, method="preview")}.get(method)
     observer = hand = None
@@ -154,7 +158,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", required=True, type=int)
     parser.add_argument("--profile", choices=("normal","noisy","corrected"), required=True)
-    parser.add_argument("--methods", nargs="+", choices=METHODS, required=True)
+    parser.add_argument("--methods", nargs="+", choices=METHODS+TRANSFER_METHODS, required=True)
+    parser.add_argument("--grasp", choices=("original","aperture","aperture_slip"), default="original")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
     if len(set(args.methods)) != len(args.methods):
@@ -165,7 +170,7 @@ def main():
     for case, p, v, *_ in throws(center, model.opt.gravity, args.seed):
         shift = (args.seed+case) % len(args.methods)
         for method in args.methods[shift:]+args.methods[:shift]:
-            rows.append(simulate(model, args.seed, case, p, v, args.profile, method))
+            rows.append(simulate(model, args.seed, case, p, v, args.profile, method, grasp=args.grasp))
     columns = dict.fromkeys(k for r in rows for k in r)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     save_csv(args.output_dir/"trials.csv", [{**columns, **r} for r in rows])
