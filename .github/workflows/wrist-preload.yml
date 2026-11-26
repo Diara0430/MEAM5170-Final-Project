@@ -1,4 +1,4 @@
-name: Verify the sign-specific wrist command on independent throws
+name: Replicate signed wrist compensation under three observation profiles
 on:
   push:
     branches: [experiment/fixed-intercept-speed]
@@ -14,8 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [normal, noisy]
-        seed: [1091, 1092, 1093, 1094, 1095, 1096]
+        profile: [normal, noisy, corrected]
+        seed: [1101, 1102, 1103, 1104, 1105, 1106]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
