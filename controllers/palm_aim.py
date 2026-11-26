@@ -57,6 +57,9 @@ class PalmAimRecovery(TimingMPC):
         if spot is not None:
             target = target+spot
         plan, info = super().solve(data, target, v, now, previous, durations=durations)
+        refine = getattr(self.contact_selector, "refine", None)
+        if plan is not None and refine is not None:
+            plan = refine(data, plan, self, now, started+self.period)
         if plan is not None and spot is not None:
             plan.impact_offset = True
         self.pending_aim = (plan, shifted) if plan is not None else None
