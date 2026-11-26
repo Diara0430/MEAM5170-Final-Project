@@ -7,7 +7,7 @@ from pathlib import Path
 from experiments.intercept_tracking import initial
 from experiments.observed_long_arc import capture_center, throws
 from experiments.render_observed_arc import render
-from experiments.shape_catch import METHODS, TRANSFER_METHODS, simulate
+from experiments.shape_catch import GRASPS, METHODS, TRANSFER_METHODS, simulate
 from scene_setup.scene import build_scene
 
 
@@ -17,7 +17,7 @@ def main():
     parser.add_argument("--case", type=int, choices=range(8), required=True)
     parser.add_argument("--profile", choices=("normal", "noisy", "corrected"), required=True)
     parser.add_argument("--method", choices=METHODS+TRANSFER_METHODS, default="pose")
-    parser.add_argument("--grasp", choices=("original","aperture","aperture_slip"), default="original")
+    parser.add_argument("--grasp", choices=GRASPS, default="original")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     model = build_scene("box")

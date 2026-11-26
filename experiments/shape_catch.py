@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from controllers.box_contact_grasp import ContactGrasp
 from controllers.box_grasp import BoxGrasp
 from controllers.box_rotation import BoxExtent, RotationTrack, as_wxyz, from_wxyz
 from controllers.catch_approach import CatchApproach
@@ -31,6 +32,7 @@ METHODS = ("center", "pose", "extent", "single", "early_lock", "nonlinear", "sto
 
 
 TRANSFER_METHODS = ("axis_lever", "axis_lever_shadow", "axis_preload")
+GRASPS = ("original", "aperture", "aperture_slip", "tactile", "lead", "lead_tactile", "recapture")
 
 
 class BoxObserver(StudyTrack):
@@ -125,6 +127,12 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
             hand = BoxGrasp(model, actuators, observer, slip_feedback=grasp=="aperture_slip")
             return hand
         so["hand_controller_factory"] = make_hand
+    elif grasp in ("tactile", "lead", "lead_tactile", "recapture"):
+        def make_hand(model, actuators):
+            nonlocal hand
+            hand = ContactGrasp(model, actuators, grasp)
+            return hand
+        so["hand_controller_factory"] = make_hand
     elif grasp != "original":
         raise ValueError("Unknown cuboid grasp")
 
@@ -147,10 +155,12 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
                   rule_name="stable4" if method=="early_lock" else "rolling", trial_options=so, **options)
     if tracker is not None:
         row.update(tracker.summary())
+    if isinstance(hand, ContactGrasp):
+        row.update(hand.diagnostics())
     quat, omega = so["launch_rotation"]
     return dict(**row, **trace.summary(row), shape="box", method=method, grasp=grasp,
-                box_width_mm=None if hand is None or hand.width is None else 1000*hand.width,
-                slip_steps=hand.slip.active_steps if hand is not None and hand.slip else 0,
+                box_width_mm=None if not isinstance(hand, BoxGrasp) or hand.width is None else 1000*hand.width,
+                slip_steps=hand.slip.active_steps if isinstance(hand, BoxGrasp) and hand.slip else 0,
                 spin_rad_s=np.linalg.norm(omega), **{f"launch_q{i}": x for i,x in enumerate(quat)})
 
 
@@ -159,7 +169,7 @@ def main():
     parser.add_argument("--seed", required=True, type=int)
     parser.add_argument("--profile", choices=("normal","noisy","corrected"), required=True)
     parser.add_argument("--methods", nargs="+", choices=METHODS+TRANSFER_METHODS, required=True)
-    parser.add_argument("--grasp", choices=("original","aperture","aperture_slip"), default="original")
+    parser.add_argument("--grasp", choices=GRASPS, default="original")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
     if len(set(args.methods)) != len(args.methods):
