@@ -14,7 +14,7 @@ from experiments.rolling_success import POLICIES, StudyTrack
 from scene_setup.scene import build_scene
 
 
-def compare(model, seed, case, start, velocity, profile, core, recovery, *, selector_factory=None):
+def compare(model, seed, case, start, velocity, profile, core, recovery, *, selector_factory=None, record_frame=None):
     factors = set(core.split("_"))
     observer = planner = None
 
@@ -41,7 +41,7 @@ def compare(model, seed, case, start, velocity, profile, core, recovery, *, sele
         return planner
 
     row = trial(model,seed,case,start,velocity,True,tracker_factory=tracker,
-                observer_factory=sensor,planner_factory=controller)
+                observer_factory=sensor,planner_factory=controller,record_frame=record_frame)
     row.update(profile=profile, policy=core+("_edge" if recovery else ""),
                camera_max_ms=observer.sample_max_ms, offset_trials=getattr(planner,"offset_trials",0),
                offset_deliveries=getattr(planner,"offset_deliveries",0),
