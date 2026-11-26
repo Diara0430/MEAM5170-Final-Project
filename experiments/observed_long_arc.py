@@ -44,7 +44,7 @@ def capture_center(data):
     return palm.xpos + palm.xmat.reshape(3, 3) @ OFFSET
 
 
-def run_trial(model, center, seed, case, start, velocity, strategy):
+def run_trial(model, center, seed, case, start, velocity, strategy, velocity_selection=None, impact_observer=None):
     sensor = BallObserver(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
     path = []
     errors = {}
@@ -115,7 +115,8 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
         tracker_factory=DiscreteArmFilter, hand_controller_factory=SphereCageClosure,
         mpc_acceleration_limit=3., follow_through=FollowThrough() if active else None,
         approach=CatchApproach(fraction=.30) if active else None,
-        observer=sensor, height_offsets=STRATEGIES[strategy], frame_observer=record)
+        observer=sensor, height_offsets=STRATEGIES[strategy], frame_observer=record,
+        velocity_selection=velocity_selection, step_observer=impact_observer)
     estimate = sensor.first_estimate
     if estimate is None or abs(estimate.time - .16) > dt/2:
         raise AssertionError("First estimate requires eight delivered frames at 50 Hz")

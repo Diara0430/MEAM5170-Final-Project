@@ -29,7 +29,7 @@ from scene_setup.scene import build_scene
 def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedule=None,
              buffer_factory=None,closure_duration=.14,frame_observer=None,hand_controller_factory=None,
              allow_schedule_extension=False,tracker_factory=None,mpc_acceleration_limit=4.,follow_through=None,approach=None,
-             observer=None, height_offsets=(0.,)):
+             observer=None, height_offsets=(0.,), velocity_selection=None):
     if not np.isfinite(closure_duration) or closure_duration<=0:
         raise ValueError("Closure duration must be positive")
     if buffer_factory is not None and follow_through is not None:
@@ -43,7 +43,8 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
     hand=LeapHand(model)
     hand_controller=None if hand_controller_factory is None else hand_controller_factory(model,hand)
     active=mode.startswith("mpc")
-    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach)
+    mpc=CatchingMPC(model,data,.2 if mode=="mpc_match" else 0.,acceleration_limit=mpc_acceleration_limit,follow_through=follow_through,approach=approach,
+                    velocity_selection=velocity_selection)
     entry = EntryTrigger(model, mpc.checker) if approach is not None and approach.entry else None
     last_applied = None
     close_reason = None
@@ -244,6 +245,11 @@ def run_case(model,p,v,scenario,kind,seed,mode,step_observer=None,solver_schedul
         diagnostics.update(physical_hold=int(physically_held), first_application_s=first_application_time,
             first_selected_s=None if first_applied is None else first_applied.intercept_time,
             first_planned_height_offset_m=None if first_applied is None else first_applied.point[2] - home_height)
+    if velocity_selection is not None:
+        diagnostics.update(
+            predicted_match=None if last_applied is None else last_applied.predicted_match,
+            predicted_normal_speed=None if last_applied is None else last_applied.predicted_normal_speed,
+            planned_stop_margin_rad=None if last_applied is None else last_applied.stop_margin)
     return dict(**diagnostics,seed=seed,scenario=scenario,kind=kind,mode=mode,accepted=int(accepted),contacted=int(first_contact is not None),
         held=int(held),qualified=int(qualified),first_contact_s=first_contact,close_s=close,
         first_normal_relative_speed_m_s=normal_speed,peak_normal_first100ms_N=peak_force,normal_impulse_first100ms_Ns=impulse,

@@ -26,6 +26,9 @@ class AccelerationReference:
     second: np.ndarray
     match_fraction: float = 0.0
     incoming_speed: float = 0.0
+    predicted_match: float | None = None
+    predicted_normal_speed: float | None = None
+    stop_margin: float | None = None
 
     def reference(self,t):
         duration=self.intercept_time-self.observation_time
@@ -51,7 +54,7 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
@@ -62,6 +65,9 @@ class CatchingMPC:
         self.acceleration_limit=acceleration_limit
         self.follow_through=follow_through
         self.approach=approach
+        self.velocity_selection = velocity_selection
+        if velocity_selection is not None and follow_through is None:
+            raise ValueError("Velocity-aware selection requires a stopping model")
         self.orientation=data.body(self.checker.palm).xmat.reshape(3,3).copy()
         self.ids=[model.actuator(f"act{i}").id for i in range(1,8)]
         self.force_limits=model.actuator_forcerange[self.ids]
@@ -90,6 +96,7 @@ class CatchingMPC:
         jp,jr=np.empty((3,m.nv)),np.empty((3,m.nv))
         mujoco.mj_jac(m,data,jp,jr,capture,ck.palm)
         j=jp[:,ck.dofs];r=jr[:,ck.dofs]
+        terminal_jac = np.empty_like(jp) if self.velocity_selection is not None else None
         capture0=capture+j@(q0-q_now)
         orientation_error=.5*np.cross(palm.xmat.reshape(3,3).T,self.orientation.T).sum(axis=0)-r@(q0-q_now)
         inertia=np.empty((m.nv,m.nv))
@@ -128,6 +135,14 @@ class CatchingMPC:
             b_rot=rotation_error-r@(v0*duration)
             # 终点位置、相对速度、姿态、加速度幅度共同进入二次目标。
             weights=((a_pos,b_pos,2e4),(a_vel,b_vel,4.),(a_rot,b_rot,100.))
+            if self.velocity_selection is not None and self.velocity_selection.prepare_early:
+                # Encourage speed along the incoming direction before the terminal point.
+                lead = min(.060, duration / 2)
+                _, before_map = self.maps(duration - lead, h)
+                direction = incoming / incoming_speed
+                row = (direction @ j @ before_map).reshape(1, -1)
+                target = np.array([fraction * incoming_speed - direction @ (j @ v0)])
+                weights = (*weights, (row, target, 8.))
             matrix=.002*np.eye(14)
             linear=np.zeros(14)
             for a,b,w in weights:
@@ -180,6 +195,18 @@ class CatchingMPC:
                 continue
             solved+=1
             score=sum(w*float(np.sum((a@x-b)**2)) for a,b,w in weights)+.002*float(x@x)+.1*duration
+            if self.velocity_selection is not None:
+                # Use the Jacobian at this candidate's checked nonlinear end pose.
+                mujoco.mj_jac(m, probe, terminal_jac, None, actual, ck.palm)
+                hand_velocity = terminal_jac[:, ck.dofs] @ end_v
+                normal = end.xmat.reshape(3, 3)[:, 2]
+                stop_q = end_q + .5 * self.follow_through.duration(end_v) * end_v
+                stop_margin = float(np.min([end_q-ck.lower, ck.upper-end_q, stop_q-ck.lower, ck.upper-stop_q]))
+                plan.stop_margin = stop_margin
+                plan.predicted_match = float(hand_velocity @ incoming / incoming_speed**2)
+                plan.predicted_normal_speed = float(normal @ (incoming - hand_velocity))
+                score = self.velocity_selection.score(
+                    incoming, hand_velocity, normal, actual-point, stop_margin)
             if score<best_score:
                 best_score=score;best=plan;self.last_solution=x.copy()
         return best,dict(wall_s=time.perf_counter()-start,feasible_candidates=solved)
