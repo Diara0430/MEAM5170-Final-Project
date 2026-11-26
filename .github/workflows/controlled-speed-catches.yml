@@ -1,0 +1,39 @@
+name: Velocity matching at a fixed flight time
+on:
+  push:
+    branches: [experiment/catch-follow-through]
+    paths:
+      - 'experiments/controlled_speed_catches.py'
+      - '.github/workflows/controlled-speed-catches.yml'
+      - 'controllers/catch_approach.py'
+      - 'controllers/catching_mpc.py'
+      - 'experiments/mpc_ball_catch.py'
+      - 'experiments/follow_through_ablation.py'
+permissions:
+  contents: read
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [817, 818]
+        vertical_speed: ['2.4', '3.0', '3.6']
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: >-
+          python -m experiments.controlled_speed_catches --seed ${{ matrix.seed }}
+          --vertical-speed ${{ matrix.vertical_speed }} --output-dir data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: speed-${{ matrix.seed }}-${{ matrix.vertical_speed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv
