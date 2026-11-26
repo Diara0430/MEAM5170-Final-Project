@@ -26,6 +26,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m unittest experiments.test_ball_observer
       - run: python -m experiments.observed_long_arc --seed ${{ matrix.seed }} --output-dir data
       - uses: actions/upload-artifact@v4
         with:
@@ -37,5 +38,7 @@ jobs:
           import json, pathlib, gzip, base64
           cases = [json.loads(p.read_text()) for p in sorted(pathlib.Path("data").glob("case*.json"))]
           sample = max(cases, key=lambda s: (s["qualified"], s["held"], s["contact"] is not None, s["first_plan"] is not None))
-          print("REPLAY=" + base64.b64encode(gzip.compress(json.dumps(sample).encode())).decode())
+          encoded = base64.b64encode(gzip.compress(json.dumps(sample).encode())).decode()
+          for i in range(0, len(encoded), 2000):
+              print(f"REPLAY_{i//2000:03d}={encoded[i:i+2000]}")
           PY

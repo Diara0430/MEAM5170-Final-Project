@@ -52,16 +52,29 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
     preplan_travel = 0.
     active_travel = 0.
     last_free = None
+    previous_arm_v = None
+    arm_dofs = [model.joint(f"joint{i}").dofadr[0] for i in range(1, 8)]
+    stage_peaks = dict(flight=0., contact_20ms=0., later=0.)
+    peak_time = None
     dt = model.opt.timestep
     camera_ticks = round(.020 / dt)
 
     def record(m, d, info):
         nonlocal first_touch_travel, closest, preplan_travel, active_travel, last_free
+        nonlocal previous_arm_v, peak_time
         now = float(d.time)
         center_now = capture_center(d)
         ball = d.joint("flight").qpos[:3].copy()
         shift = float(np.linalg.norm(center_now - center))
         contact = info["first_contact_s"]
+        arm_v = d.qvel[arm_dofs].copy()
+        if previous_arm_v is not None:
+            acceleration = float(np.max(np.abs(arm_v - previous_arm_v)) / dt)
+            stage = "flight" if contact is None else "contact_20ms" if now-dt < contact+.020-1e-9 else "later"
+            if acceleration > max(stage_peaks.values()):
+                peak_time = now-dt
+            stage_peaks[stage] = max(stage_peaks[stage], acceleration)
+        previous_arm_v = arm_v
         if contact is None:
             active_travel = max(active_travel, shift)
             if info["plans_applied"] == 0:
@@ -76,11 +89,15 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
                         errors[horizon] = float(np.linalg.norm(ball - predicted))
         elif first_touch_travel is None:
             first_touch_travel = last_free
-        if round(now/dt) % camera_ticks or (contact is not None and now > contact + .12):
+        stride = 5*camera_ticks if contact is not None and now > contact + .12 else camera_ticks
+        if round(now/dt) % stride:
             return
         ref = info.get("applied_reference")
         last = sensor.frames[-1] if sensor.frames else None
+        fitted = sensor.estimate if contact is None else None
         path.append(dict(time_s=now, ball=ball.tolist(), hand=center_now.tolist(),
+                         qpos=d.qpos.round(8).tolist(),
+                         forecast=None if fitted is None else [fitted.time, fitted.position.tolist(), fitted.velocity.tolist()],
                          measurement_time=None if last is None else last[0],
                          measurement=None if last is None else last[1].tolist(),
                          intercept=None if ref is None else ref.point.tolist(),
@@ -99,6 +116,8 @@ def run_trial(model, center, seed, case, start, velocity, strategy):
     if row["first_application_s"] is not None and row["first_application_s"] < estimate.time + .02 - 1e-8:
         raise AssertionError("Arm plan applied before measurement and solver delay")
     row.update(strategy=strategy, first_estimate_s=estimate.time, peak_precontact_travel_mm=1000*active_travel,
+               peak_flight_accel=stage_peaks["flight"], peak_contact20_accel=stage_peaks["contact_20ms"],
+               peak_later_accel=stage_peaks["later"], peak_accel_time_s=peak_time,
                before_plan_travel_mm=1000*preplan_travel, closest_free_mm=1000*closest,
                precontact_at_touch_mm=None if first_touch_travel is None else 1000*first_touch_travel,
                first_forecast_200ms_mm=1000*errors[.2] if .2 in errors else None,
