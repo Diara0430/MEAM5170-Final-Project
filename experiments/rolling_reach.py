@@ -50,8 +50,9 @@ def compare(model, seed, case, start, velocity, profile, core, recovery):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--profile", choices=("normal","noisy"), required=True)
+    parser.add_argument("--profile", choices=("normal","noisy","corrected"), required=True)
     parser.add_argument("--core", choices=POLICIES, required=True)
+    parser.add_argument("--recovery-only", action="store_true", help="Run just the recovery policy")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     args.output_dir.mkdir(exist_ok=True, parents=True)
@@ -62,6 +63,8 @@ def main():
         options = [("rolling",False), (args.core,False), (args.core,True)]
         if args.core == "rolling":
             options = options[1:]
+        if args.recovery_only:
+            options = [(args.core,True)]
         shift = (args.seed+case) % len(options)
         rows.extend(compare(model,args.seed,case,p,v,args.profile,core,on)
                     for core,on in options[shift:]+options[:shift])

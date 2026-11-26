@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        profile: [normal, noisy]
-        seed: [991, 992, 993, 994, 995]
+        profile: [normal, noisy, corrected]
+        seed: [1001, 1002, 1003, 1004]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
