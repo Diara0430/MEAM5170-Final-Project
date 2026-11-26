@@ -5,10 +5,12 @@ from controllers.sphere_cage import SphereCageClosure
 
 
 class ContactGrasp(SphereCageClosure):
-    def __init__(self, model, hand, policy):
+    def __init__(self, model, hand, policy, *, shadow=False):
         super().__init__(model, hand)
         if policy not in ("tactile", "lead", "lead_tactile", "recapture"):
             raise ValueError("Unknown contact policy")
+        self.shadow = shadow
+        self.delivered_steps = 0
         self.lead = policy in ("lead","lead_tactile")
         self.tactile = policy in ("tactile","lead_tactile")
         self.recapture = policy == "recapture"
@@ -34,10 +36,13 @@ class ContactGrasp(SphereCageClosure):
         original = data.ctrl[ids].copy()
         correction = np.clip(self.bias[:,None]*self.weights, -.45/self.stiffness, .45/self.stiffness)
         command = np.clip(original+correction, self.hand.limits[self.flex,0], self.hand.limits[self.flex,1])
-        data.ctrl[ids] = command
+        if not self.shadow:
+            data.ctrl[ids] = command
         amount = float(np.max(np.abs((command-original)*self.stiffness)))
         self.max_torque_change = max(self.max_torque_change, amount)
-        return amount > 1e-7
+        changed = amount > 1e-7
+        self.delivered_steps += int(changed and not self.shadow)
+        return changed
 
     def prepare(self, model, data, now, nominal):
         super().prepare(model, data, now, nominal)
@@ -74,5 +79,5 @@ class ContactGrasp(SphereCageClosure):
             self.after_frames += int(self._apply(data))
 
     def diagnostics(self):
-        return dict(lead_steps=self.before_frames, tactile_steps=self.after_frames,
+        return dict(hand_changes_applied=self.delivered_steps, lead_steps=self.before_frames, tactile_steps=self.after_frames,
                     recapture_steps=self.recapture_frames, yielding_steps=self.yield_frames, max_flex_torque_delta_Nm=self.max_torque_change)

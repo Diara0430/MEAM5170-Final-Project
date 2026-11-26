@@ -32,7 +32,8 @@ METHODS = ("center", "pose", "extent", "single", "early_lock", "nonlinear", "sto
 
 
 TRANSFER_METHODS = ("axis_lever", "axis_lever_shadow", "axis_preload")
-GRASPS = ("original", "aperture", "aperture_slip", "tactile", "lead", "lead_tactile", "recapture")
+CONTACT_GRASPS = ("tactile", "lead", "lead_tactile", "recapture")
+GRASPS = ("original", "aperture", "aperture_slip", *CONTACT_GRASPS, *(name+"_shadow" for name in CONTACT_GRASPS))
 
 
 class BoxObserver(StudyTrack):
@@ -127,10 +128,10 @@ def simulate(model, seed, case, p, v, profile, method, *, grasp="original", reco
             hand = BoxGrasp(model, actuators, observer, slip_feedback=grasp=="aperture_slip")
             return hand
         so["hand_controller_factory"] = make_hand
-    elif grasp in ("tactile", "lead", "lead_tactile", "recapture"):
+    elif grasp.removesuffix("_shadow") in CONTACT_GRASPS:
         def make_hand(model, actuators):
             nonlocal hand
-            hand = ContactGrasp(model, actuators, grasp)
+            hand = ContactGrasp(model, actuators, grasp.removesuffix("_shadow"), shadow=grasp.endswith("_shadow"))
             return hand
         so["hand_controller_factory"] = make_hand
     elif grasp != "original":
