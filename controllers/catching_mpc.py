@@ -24,6 +24,8 @@ class AccelerationReference:
     v0: np.ndarray
     first: np.ndarray
     second: np.ndarray
+    match_fraction: float = 0.0
+    incoming_speed: float = 0.0
 
     def reference(self,t):
         duration=self.intercept_time-self.observation_time
@@ -49,7 +51,7 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
@@ -59,6 +61,7 @@ class CatchingMPC:
         self.match=velocity_match
         self.acceleration_limit=acceleration_limit
         self.follow_through=follow_through
+        self.approach=approach
         self.orientation=data.body(self.checker.palm).xmat.reshape(3,3).copy()
         self.ids=[model.actuator(f"act{i}").id for i in range(1,8)]
         self.force_limits=model.actuator_forcerange[self.ids]
@@ -104,14 +107,23 @@ class CatchingMPC:
                 continue
             if incoming@self.orientation[:,2]<.05 or np.linalg.norm(point-capture0)>.25:
                 continue
+            target_rotation = self.orientation
+            fraction = self.match
+            incoming_speed = float(np.linalg.norm(incoming))
+            rotation_error = orientation_error
+            if self.approach is not None:
+                fraction = self.approach.match_fraction(incoming_speed)
+                if self.approach.tilt:
+                    target_rotation = self.approach.palm_target(self.orientation, incoming)
+                    rotation_error = .5 * np.cross(palm.xmat.reshape(3, 3).T, target_rotation.T).sum(axis=0) - r @ (q0 - q_now)
             h=duration/2
             qmap,vmap=self.maps(duration,h)
             a_pos=j@qmap
             b_pos=point-capture0-j@(v0*duration)
             a_vel=j@vmap
-            b_vel=self.match*incoming-j@v0
+            b_vel=fraction*incoming-j@v0
             a_rot=r@qmap
-            b_rot=orientation_error-r@(v0*duration)
+            b_rot=rotation_error-r@(v0*duration)
             # 终点位置、相对速度、姿态、加速度幅度共同进入二次目标。
             weights=((a_pos,b_pos,2e4),(a_vel,b_vel,4.),(a_rot,b_rot,100.))
             matrix=.002*np.eye(14)
@@ -142,7 +154,7 @@ class CatchingMPC:
             x=result.x
             if max(np.max(lo-a@x),np.max(a@x-hi))>2e-4:
                 continue
-            plan=AccelerationReference(now+lag,now+lag+duration,point,self.orientation.copy(),q0,v0,x[:7],x[7:])
+            plan=AccelerationReference(now+lag,now+lag+duration,point,target_rotation.copy(),q0,v0,x[:7],x[7:],fraction,incoming_speed)
             if self.follow_through is not None:
                 end_q, end_v, _ = plan.reference(plan.intercept_time)
                 if not self.follow_through.fits(end_q, end_v, ck.lower, ck.upper):

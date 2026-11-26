@@ -1,0 +1,62 @@
+name: Catch timing, orientation and velocity experiment
+on:
+  push:
+    branches: [experiment/catch-follow-through]
+    paths:
+      - 'controllers/catch_approach.py'
+      - 'controllers/catching_mpc.py'
+      - 'experiments/mpc_ball_catch.py'
+      - 'experiments/approach_ablation.py'
+      - 'experiments/follow_through_ablation.py'
+      - '.github/workflows/approach-experiment.yml'
+permissions:
+  contents: read
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [810, 813, 814]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: python -m experiments.approach_ablation --output-dir data --seed ${{ matrix.seed }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screen-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv
+  confirm:
+    needs: screen
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [815, 816]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: screen-*
+          path: screening
+      - run: python -m pip install -r scene_setup/requirements.txt
+      - run: >-
+          python -m experiments.approach_ablation --output-dir data --seed ${{ matrix.seed }}
+          --profiles nominal short long --selection screening/screen-813/trials.csv screening/screen-814/trials.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: confirm-${{ matrix.seed }}
+          path: data/trials.csv
+      - run: cat data/trials.csv

@@ -38,7 +38,7 @@ class TraceTracker(DiscreteArmFilter):
         super().command(data, plan, t)
 
 
-def run_trial(model, xyz, speed, seed, case, policy, schedule):
+def run_trial(model, xyz, speed, seed, case, policy, schedule, approach=None):
     tracker = TraceTracker(model)
     flight = model.joint("flight").dofadr[0]
     ball = model.geom("projectile").id
@@ -93,7 +93,7 @@ def run_trial(model, xyz, speed, seed, case, policy, schedule):
         solver_schedule=schedule, allow_schedule_extension=True,
         tracker_factory=lambda m: tracker,
         hand_controller_factory=lambda m, h: SphereCageClosure(m, h),
-        mpc_acceleration_limit=3.0, follow_through=policy, frame_observer=frame,
+        mpc_acceleration_limit=3.0, follow_through=policy, frame_observer=frame, approach=approach,
     )
     # Same actuator commands, including fingers, but no ball-hand contact.
     ghost = launch(model, np.array([4., 4., 10.]), np.zeros(3))
