@@ -115,12 +115,15 @@ class CatchingMPC:
         solved=0
         if durations is None:
             durations = (.12,.18,.24,.30,.36,.42,.48,.54,.60,.66)
+        adjust_target = getattr(self.contact_selector, "adjust_target", None)
         for duration in durations:
             flight_time=lag+duration
             point=p+v*flight_time+.5*m.opt.gravity*flight_time**2
             incoming=v+m.opt.gravity*flight_time
             if fixed_target is not None:
                 point, incoming = fixed_target
+            elif adjust_target is not None:
+                point = adjust_target(point, self.orientation[:, 2], now + flight_time)
             if point[2]<ck.radius+.005 or np.linalg.norm(point)>ck.reach_bound+.002:
                 continue
             if incoming@self.orientation[:,2]<.05 or np.linalg.norm(point-capture0)>.25:

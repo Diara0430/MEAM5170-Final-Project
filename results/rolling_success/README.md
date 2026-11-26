@@ -106,3 +106,5 @@ python -m experiments.rolling_success --seed 981 --profile normal --policy track
 python -m experiments.rolling_reach --seed 1001 --profile normal --core track_reserve --recovery-only --output-dir results_local/track-reserve-edge
 python -m experiments.plot_rolling_success results/rolling_success
 ```
+
+后续对同一基线的七轴合规、触球速度和冲量配对实验见[关节约束下的柔和接球](../intercept_impact/README.md)。

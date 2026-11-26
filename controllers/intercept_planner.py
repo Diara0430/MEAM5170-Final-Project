@@ -54,9 +54,14 @@ class InterceptPlanner:
         self.amax=acceleration_limit
         self.palm=model.body("hand/palm_lower").id
         self.object=model.body("projectile").id
-        if model.geom("projectile").type[0]!=mujoco.mjtGeom.mjGEOM_SPHERE:
-            raise ValueError("This first interception planner supports spherical objects")
-        self.radius=model.geom("projectile").size[0]
+        projectile = model.geom("projectile")
+        if projectile.type[0] == mujoco.mjtGeom.mjGEOM_BOX:
+            # Orientation-independent clearance from the floor for a rotating box.
+            self.radius = float(np.linalg.norm(projectile.size))
+        elif projectile.type[0] == mujoco.mjtGeom.mjGEOM_SPHERE:
+            self.radius = float(projectile.size[0])
+        else:
+            raise ValueError("Expected a spherical or cuboid projectile")
         self.local_capture=np.array([0.,-.055,-.08])
         # 串联旋转关节链的保守几何上界，先过滤显然过远的目标。
         self.reach_bound=float(np.linalg.norm(self.local_capture))

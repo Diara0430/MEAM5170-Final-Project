@@ -14,18 +14,19 @@ from experiments.rolling_success import POLICIES, StudyTrack
 from scene_setup.scene import build_scene
 
 
-def compare(model, seed, case, start, velocity, profile, core, recovery, *, selector_factory=None):
+def compare(model, seed, case, start, velocity, profile, core, recovery, *, selector_factory=None, record_frame=None,
+            tracker_type=DeadlineArmFilter, sensor_type=StudyTrack, rule_name="rolling", trial_options=None):
     factors = set(core.split("_"))
     observer = planner = None
 
     def sensor(gravity, noise_seed):
         nonlocal observer
-        observer = StudyTrack(gravity, noise_seed, seed=seed, case=case, profile=profile,
+        observer = sensor_type(gravity, noise_seed, seed=seed, case=case, profile=profile,
                               long_track="track" in factors)
         return observer
 
     def tracker(m, obs, enabled):
-        out = DeadlineArmFilter(m, obs, enabled, fast=True, refine=True)
+        out = tracker_type(m, obs, enabled, fast=True, refine=True)
         if "reserve" in factors:
             out.config = replace(out.config,speed=.985)
         return out
@@ -35,17 +36,20 @@ def compare(model, seed, case, start, velocity, profile, core, recovery, *, sele
         cls = PalmAimRecovery if recovery else TimingMPC
         if selector_factory is not None:
             kwargs["contact_selector"] = selector_factory(model, observer)
-        planner = cls(*args, observer=observer, rule=RULES["rolling"], **kwargs,
+        planner = cls(*args, observer=observer, rule=RULES[rule_name], **kwargs,
                       planning_speed_limit=.97 if "reserve" in factors else 1.,
                       orientation_tolerance=.085 if "wrist" in factors else .03)
         return planner
 
     row = trial(model,seed,case,start,velocity,True,tracker_factory=tracker,
-                observer_factory=sensor,planner_factory=controller)
+                observer_factory=sensor,planner_factory=controller,record_frame=record_frame,
+                **(trial_options or {}))
     row.update(profile=profile, policy=core+("_edge" if recovery else ""),
                camera_max_ms=observer.sample_max_ms, offset_trials=getattr(planner,"offset_trials",0),
                offset_deliveries=getattr(planner,"offset_deliveries",0),
                first_offset_s=getattr(planner,"first_offset",None))
+    if rule_name != "rolling":
+        row["lock_s"] = planner.lock_s
     if selector_factory is not None:
         row.update(planner.contact_selector.summary())
     return row

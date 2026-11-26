@@ -24,6 +24,9 @@ class ShortImpact(InterceptImpact):
         pos, vel = self.observer.estimate.at(stamp)
         d.joint("flight").qpos[:] = [*pos,1.,0.,0.,0.]
         d.joint("flight").qvel[:] = [*vel,0.,0.,0.]
+        pose = getattr(self.observer, "preview_rotation", None)
+        if pose is not None:
+            pose.write(d, stamp)
         return q, v
 
     def _hand_sign(self, c):

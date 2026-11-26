@@ -1,0 +1,36 @@
+name: Verify recorded animation and plot joint and pose outcomes
+on:
+  push:
+    branches: [experiment/fixed-intercept-speed]
+    paths: ['results/shape_transfer/box_confirmation.csv', 'experiments/plot_shape_transfer.py', '.github/workflows/shape-result-figure.yml']
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy matplotlib pillow
+      - run: python -m experiments.plot_shape_transfer results/shape_transfer
+      - name: Confirm replay matches its recording and export preview
+        shell: python
+        run: |
+          import base64, gzip, hashlib, json
+          from pathlib import Path
+          from PIL import Image
+          p = Path('results/shape_transfer')
+          for name,digest in [('catch.gif','9c8dc824807468980810d737aa67cf4a2ae3747176246ab29910a237f694fd1f'),
+                              ('replay.json.gz','7f60d734e6eb5a3d0861420ef2970d736ccf382b846d936bf812d2714cfdf66b')]:
+              assert hashlib.sha256((p/name).read_bytes()).hexdigest() == digest
+          data = json.loads(gzip.decompress((p/'replay.json.gz').read_bytes()))
+          g = Image.open(p/'catch.gif')
+          assert g.n_frames == len(data['path']) and data['shape']=='box'
+          idx = min(range(g.n_frames), key=lambda i: abs(data['path'][i]['time_s']-data['contact']))
+          g.seek(idx)
+          g.convert('RGB').resize((531,318)).save('preview.jpg')
+          print('ANIMATION',g.n_frames,data['held'],data['qualified'],data['contact'])
+          print('POSTER',base64.b64encode(Path('preview.jpg').read_bytes()).decode())
+          print('FIGURE',base64.b64encode((p/'contact_and_pose.svg').read_bytes()).decode())

@@ -19,7 +19,9 @@ from scene_setup.scene import build_scene
 
 
 def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter,
-          planner_factory=CatchingMPC, record_frame=None, observer_factory=BallObserver):
+          planner_factory=CatchingMPC, record_frame=None, observer_factory=BallObserver,
+          launch_rotation=None, approach=None, heights=None, velocity_selection=None,
+          hand_controller_factory=SphereCageClosure):
     observer = observer_factory(model.opt.gravity, np.random.SeedSequence([seed, case, 93]))
     tracker = tracker_factory(model, observer, preview)
     impact = ImpactMeasurement(model)
@@ -56,9 +58,10 @@ def trial(model, seed, case, p, v, preview, tracker_factory=ContactPreviewFilter
             peak_20 = max(peak_20, float(np.max(np.abs(accel))))
 
     result, _, _ = run_case(model, p, v, case, "long_arc", seed, "mpc_match",
-        tracker_factory=lambda m: tracker, hand_controller_factory=SphereCageClosure,
-        mpc_acceleration_limit=3., follow_through=FollowThrough(), approach=CatchApproach(fraction=.30),
-        observer=observer, height_offsets=STRATEGIES["seven_heights"], step_observer=touch, frame_observer=flight,
+        tracker_factory=lambda m: tracker, hand_controller_factory=hand_controller_factory,
+        mpc_acceleration_limit=3., follow_through=FollowThrough(), approach=approach if approach is not None else CatchApproach(fraction=.30),
+        observer=observer, height_offsets=STRATEGIES["seven_heights"] if heights is None else heights,
+        launch_rotation=launch_rotation, velocity_selection=velocity_selection, step_observer=touch, frame_observer=flight,
         planner_factory=planner_factory)
     times = tracker.near_times_ms
     result.update(policy="projected_contact" if preview else "robot_only",
