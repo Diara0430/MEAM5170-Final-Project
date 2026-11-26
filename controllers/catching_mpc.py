@@ -54,11 +54,16 @@ class AccelerationReference:
 class CatchingMPC:
     period=.020
 
-    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None):
+    def __init__(self,model,data,velocity_match=.2,acceleration_limit=4.,follow_through=None,approach=None,velocity_selection=None, *,
+                 planning_speed_limit=1., orientation_tolerance=.03):
         if not np.isfinite(velocity_match) or not 0<=velocity_match<=1:
             raise ValueError("Velocity matching fraction must be in [0,1]")
         if not np.isfinite(acceleration_limit) or acceleration_limit<=0:
             raise ValueError("Positive finite planning acceleration limit required")
+        if not (0 < planning_speed_limit <= 1 and 0 < orientation_tolerance <= .15):
+            raise ValueError("Invalid planning speed limit or orientation tolerance")
+        self.planning_speed_limit = planning_speed_limit
+        self.orientation_tolerance = orientation_tolerance
         self.model=model
         self.checker=InterceptPlanner(model,data)
         self.match=velocity_match
@@ -156,11 +161,11 @@ class CatchingMPC:
             for t in np.linspace(duration/4,duration,4):
                 qm,vm=self.maps(t,h)
                 constraint.extend((qm,vm))
-                lower.extend((ck.lower-q0-v0*t,-np.ones(7)-v0))
-                upper.extend((ck.upper-q0-v0*t,np.ones(7)-v0))
+                lower.extend((ck.lower-q0-v0*t,-self.planning_speed_limit-v0))
+                upper.extend((ck.upper-q0-v0*t,self.planning_speed_limit-v0))
             constraint.extend((a_pos,a_rot))
-            lower.extend((b_pos-.005,b_rot-.03))
-            upper.extend((b_pos+.005,b_rot+.03))
+            lower.extend((b_pos-.005,b_rot-self.orientation_tolerance))
+            upper.extend((b_pos+.005,b_rot+self.orientation_tolerance))
             if speed_request is not None:
                 projection, requested = speed_request
                 constraint.append((projection @ vmap).reshape(1,-1))
@@ -189,7 +194,7 @@ class CatchingMPC:
             # 五点非线性运动学复核，不把线性化终点误差当作实际位置误差。
             for fraction in np.linspace(0,1,5):
                 q,vel,_=plan.reference(plan.observation_time+duration*fraction)
-                if min(np.r_[q-ck.lower,ck.upper-q])<0 or max(abs(vel))>1.0002:
+                if min(np.r_[q-ck.lower,ck.upper-q])<0 or max(abs(vel))>self.planning_speed_limit+.0002:
                     valid=False;break
                 probe.qpos[ck.qadr]=q
                 mujoco.mj_forward(m,probe)
