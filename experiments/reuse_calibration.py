@@ -10,6 +10,7 @@ from controllers.fixed_intercept import CalibrationMPC
 
 
 class ReuseCalibrationMPC(CalibrationMPC):
+    reset_rho = False
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cache_hits = self.cache_misses = 0
@@ -27,6 +28,8 @@ class ReuseCalibrationMPC(CalibrationMPC):
                 if cache.get('key') == key:
                     self.solver = cache['solver']
                     self.solver.update(l=l, u=u)
+                    if owner.reset_rho:
+                        self.solver.update_settings(rho=0.1)
                     # Match independent solver initialization; adaptive internal solver
                     # state can still differ and is checked experimentally.
                     self.solver.warm_start(x=np.zeros(P.shape[0]), y=np.zeros(A.shape[0]))
@@ -42,3 +45,8 @@ class ReuseCalibrationMPC(CalibrationMPC):
                 return self.solver.solve(*a, **k)
         with patch('controllers.catching_mpc.osqp.OSQP', ReusedSolver):
             return super().solve(*args, **kwargs)
+
+
+class ResetRhoCalibrationMPC(ReuseCalibrationMPC):
+    """Experimental full-grid reuse with rho reset to the fresh solver default."""
+    reset_rho = True
