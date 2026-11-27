@@ -86,6 +86,12 @@ class CatchingMPC:
             return np.hstack((.5*t*t*np.eye(7),np.zeros((7,7)))),np.hstack((t*np.eye(7),np.zeros((7,7))))
         return np.hstack((h*(t-.5*h)*np.eye(7),.5*(t-h)**2*np.eye(7))),np.hstack((h*np.eye(7),(t-h)*np.eye(7)))
 
+    def _setup_qp_solver(self, P, q, A, l, u, **options):
+        """创建独立求解器；实验子类可覆盖此处，默认控制器仍使用新实例。"""
+        solver = osqp.OSQP()
+        solver.setup(P=P, q=q, A=A, l=l, u=u, **options)
+        return solver
+
     def solve(self,data,p,v,now,previous,durations=None, *, fixed_target=None, speed_request=None):
         start=time.perf_counter()
         m=self.model
@@ -178,8 +184,7 @@ class CatchingMPC:
                 lower.append(np.array([center_speed-.015]))
                 upper.append(np.array([center_speed+.015]))
             a=np.vstack(constraint);lo=np.concatenate(lower);hi=np.concatenate(upper)
-            solver=osqp.OSQP()
-            solver.setup(P=sparse.csc_matrix(2*matrix),q=2*linear,A=sparse.csc_matrix(a),l=lo,u=hi,
+            solver=self._setup_qp_solver(P=sparse.csc_matrix(2*matrix),q=2*linear,A=sparse.csc_matrix(a),l=lo,u=hi,
                          verbose=False,polishing=False,max_iter=2000,eps_abs=1e-5,eps_rel=1e-5)
             if self.last_solution is not None:
                 solver.warm_start(x=self.last_solution)
