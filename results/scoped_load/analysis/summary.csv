@@ -1,0 +1,5 @@
+workers,profile,throws,grid_ready,scoped_ready,grid_timeout,scoped_timeout,grid_no_anchor,scoped_no_anchor,grid_no_speed,scoped_no_speed,grid_held,scoped_held,grid_qualified,scoped_qualified,grid_applied_not_held,scoped_applied_not_held,completed_pairs,same_anchor,levels_exact,levels_within_1e9,target_exact,grid_median_ms,scoped_median_ms,paired_median_saving_ms
+0,noisy,16,12,13,1,0,3,3,0,0,5,7,3,4,7,6,13,13,13,13,13,67.25139997433871,49.913099966943264,17.79549999628216
+0,normal,16,11,13,2,0,3,3,0,0,10,12,6,8,1,1,13,13,13,13,13,66.30250002490357,49.022399995010346,13.935400056652725
+4,noisy,16,13,13,0,0,3,3,0,0,6,6,4,4,7,7,13,13,13,13,13,42.5010000471957,42.17550001339987,1.2043999740853906
+4,normal,16,13,13,0,0,3,3,0,0,12,12,8,8,1,1,13,13,13,13,13,43.79159997915849,37.506200023926795,7.753799960482866

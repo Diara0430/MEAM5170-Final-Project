@@ -1,0 +1,14 @@
+{
+  "seed": 1251,
+  "profile": "noisy",
+  "load_workers": 4,
+  "logical_cpus": 18,
+  "wall_seconds": 18.35805949999485,
+  "worker_cpu_seconds": [
+    18.171875,
+    18.234375,
+    18.234375,
+    18.203125
+  ],
+  "child_exit_code": 0
+}
