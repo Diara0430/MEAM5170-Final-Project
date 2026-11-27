@@ -1,0 +1,5 @@
+profile,angle_deg,all_pairs,matched_pairs,fixture_not_ready,plan_not_applied,no_contact,speed_unavailable,speed_mismatch,base_held,candidate_held,n_axis6_peak_contact20_rad_s2,median_delta_axis6_peak_contact20_rad_s2,n_peak_contact20_accel,median_delta_peak_contact20_accel,n_impact20_peak_N,median_delta_impact20_peak_N,n_impulse20_Ns,median_delta_impulse20_Ns,n_relative_travel_100ms_mm,median_delta_relative_travel_100ms_mm,n_relative_rotation_100ms_deg,median_delta_relative_rotation_100ms_deg
+normal,-20.0,16,9,3,3,0,0,1,8,6,0,,9,0.10897323762781852,9,0.2805329431098791,9,-0.00099151316925572,9,2.323160256524755,9,7.547725447365167
+normal,-10.0,16,10,3,1,0,0,2,8,8,0,,10,-0.0018720729415833137,10,-0.1026738965075964,10,-0.001699890814848115,10,-0.6009765954789899,10,2.289390005447496
+normal,10.0,16,10,3,2,0,0,1,8,9,0,,10,-0.07606312923566505,10,0.09300020869145698,10,-0.0024667143504303324,10,1.0184613042298967,10,1.3553600922687865
+normal,20.0,16,9,3,3,0,0,1,7,8,0,,9,-0.1593574280866208,9,0.17611326153075524,9,0.005083770753126826,9,-1.7458127274214625,9,0.356109477716938

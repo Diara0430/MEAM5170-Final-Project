@@ -46,13 +46,22 @@ def run(model, seed, case, p, v, profile, angles):
             planner = RotatedFixedMPC(*args, fixture=fixture, label='mid', angle=angle,
                                       planning_speed_limit=.97, **kwargs)
             return planner
-        audit = {"initial": None, "contact": None, "relative": None, "after": None}
+        audit = {"initial": None, "contact": None, "relative": None, "after": None, "previous_arm_velocity": None, "axis6_peak": None}
         def record(m, d, info, observer, tracker):
             palm = d.body("hand/palm_lower")
             R = palm.xmat.reshape(3, 3).copy()
             if audit["initial"] is None:
                 audit["initial"] = R
             onset = info["first_contact_s"]
+            # 用相邻物理步的第六轴速度计算首触后 20 ms 加速度峰值。
+            current_velocity = d.qvel[tracker.dofs].copy()
+            previous_velocity = audit["previous_arm_velocity"]
+            audit["previous_arm_velocity"] = current_velocity
+            if onset is not None and previous_velocity is not None:
+                step = round((float(d.time) - m.opt.timestep - onset) / m.opt.timestep)
+                if 0 <= step < round(.020 / m.opt.timestep):
+                    acceleration = abs(float((current_velocity[5] - previous_velocity[5]) / m.opt.timestep))
+                    audit["axis6_peak"] = max(audit["axis6_peak"] or 0., acceleration)
             if onset is None:
                 return
             quat = d.joint("flight").qpos[3:].copy()
@@ -79,6 +88,7 @@ def run(model, seed, case, p, v, profile, angles):
                       fixed_z=None if fixture.point is None else fixture.point[2],
                       requested_speed_m_s=fixture.target_speed('mid'),
                       feasible_plans=planner.feasible_plans, calibration_ms=fixture.preparation_ms,
+                      axis6_peak_contact20_rad_s2=audit["axis6_peak"],
                       contact_orientation_error_deg=None if audit["contact"] is None else audit["contact"][0],
                       contact_palm_speed_m_s=None if audit["contact"] is None else audit["contact"][1],
                       relative_travel_100ms_mm=None if audit["after"] is None else audit["after"][0],
