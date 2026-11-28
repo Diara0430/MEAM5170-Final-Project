@@ -1,0 +1,5 @@
+profile,policy,trials,applied,held,qualified,trials_with_episode,episodes,episodes_loaded_during,episodes_loaded_by_followup,episodes_stable_by_followup,episodes_approach_5mm,episodes_full_followup,median_proxy_approach_mm,median_min_object_gap_mm,selected_frames,no_loaded_contact_frames,ambiguous_normal_frames,opposing_normals_frames,no_digit_selected_frames
+normal,shadow,16,14,12,8,8,24,3,7,6,4,24,1.0387300837985738,8.335761726071153,422,218,409,440,51
+normal,geometry,16,14,12,8,8,24,3,7,6,4,24,1.0505870974227074,7.882517431117121,422,218,409,440,51
+noisy,shadow,16,15,12,9,10,26,2,6,6,10,26,3.52736913514351,16.06266732751569,401,261,340,582,66
+noisy,geometry,16,15,12,8,10,23,3,6,6,9,23,3.396094482994383,14.409055725520965,382,261,346,593,68
