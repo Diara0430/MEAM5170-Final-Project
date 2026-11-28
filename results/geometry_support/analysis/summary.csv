@@ -1,0 +1,9 @@
+phase,profile,policy,throws,baseline_applied,candidate_applied,baseline_held,candidate_held,baseline_qualified,candidate_qualified,rescued,lost,same_fixture,both_held,delivered_cases,median_delta_impulse20_Ns,median_delta_peak_contact20_accel,median_delta_travel_mm_100,median_delta_angle_deg_100
+development,normal,shadow,16,12,12,10,11,4,6,1,0,12,10,0,0.0,0.0,0.0,0.0
+development,normal,geometry,16,12,12,10,10,4,7,0,0,12,10,4,-3.8129107637507875e-05,0.0,0.000308912897125424,6.075846215658487e-05
+development,noisy,shadow,16,12,12,8,7,2,3,0,1,12,7,0,0.0,0.0,0.0,0.0
+development,noisy,geometry,16,12,12,8,8,2,4,0,0,12,8,9,0.0,0.0,0.003370912096105627,0.0
+confirmation,normal,shadow,16,14,14,12,12,8,9,0,0,14,12,0,0.0,0.0,0.0,0.0
+confirmation,normal,geometry,16,14,14,12,12,8,9,0,0,14,12,8,0.0,0.0,0.0,0.0
+confirmation,noisy,shadow,16,15,15,12,12,9,9,0,0,15,12,0,0.0,0.0,0.0,0.0
+confirmation,noisy,geometry,16,15,15,12,12,9,9,0,0,15,12,10,0.0,0.0,0.0,0.0
